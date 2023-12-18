@@ -16,7 +16,7 @@ void setup()
 
   // Set the initial state of servo motor into 0 degree
   servoM1.write(0);
-  //servoM2.write(90);
+  servoM2.write(0);
   servoM3.write(0);
 }
 
@@ -30,10 +30,20 @@ void loop()
   delay(3000);
 
   // Drop feed from M2 to M3
-  servoM2.write(0);
-  delay(1000);
-
   servoM2.write(180);
+  delay(3000);
+
+  servoM2.write(0);
+
+  for (pos = 0; pos <= 180; pos += 1) {
+    servoM3.write(pos);
+    delay(15);                      
+  }
+
+  for (pos = 180; pos >= 0; pos -= 1) { 
+    servoM3.write(pos);        
+    delay(15);                  
+  }
   
-  delay(1000);
+  delay(10000);
 }
