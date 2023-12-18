@@ -31,9 +31,9 @@ void loop()
 
   // Drop feed from M2 to M3
   servoM2.write(0);
-  delay(3000);
+  delay(1000);
 
   servoM2.write(180);
   
-  delay(10000);
+  delay(1000);
 }
