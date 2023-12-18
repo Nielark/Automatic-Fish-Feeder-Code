@@ -16,7 +16,7 @@ void setup()
 
   // Set the initial state of servo motor into 0 degree
   servoM1.write(0);
-  myServoM2.writeMicroseconds(1500);
+  servoM2.writeMicroseconds(1500);
   servoM3.write(0);
 }
 
@@ -33,7 +33,7 @@ void loop()
   servoM2.write(180);
   delay(3000);
 
-  myServoM2.writeMicroseconds(1500);
+  servoM2.writeMicroseconds(1500);
   
   delay(10000);
 }
