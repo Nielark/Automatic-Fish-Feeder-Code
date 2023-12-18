@@ -34,7 +34,7 @@ void loop()
   delay(3000);
 
   servoM2.write(0);
-
+  int pos;
   for (pos = 0; pos <= 180; pos += 1) {
     servoM3.write(pos);
     delay(15);                      
