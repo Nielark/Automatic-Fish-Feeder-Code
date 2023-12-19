@@ -17,7 +17,7 @@ void setup()
   // Set the initial state of servo motor into 0 degree
   servoM1.write(0);
   servoM2.write(0);
-  servoM3.write(0);
+  servoM3.write(90);
 }
 
 void loop()
@@ -37,11 +37,11 @@ void loop()
 
   for(int i = 0; i < 10; i++) {
     servoM3.write(0); //Spin in one direction
-    delay(1000);
+    delay(500);
     servoM3.write(90); // Stop
     delay(500);
     servoM3.write(180);  // Spin in opposite direction
-    delay(1000);
+    delay(500);
     servoM3.write(90);  // Stop
     delay(500);
   }
