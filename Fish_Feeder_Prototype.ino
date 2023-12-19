@@ -37,11 +37,11 @@ void loop()
 
   for(int i = 0; i < 10; i++) {
     servoM3.write(0); //Spin in one direction
-    delay(500);
+    delay(300);
     servoM3.write(90); // Stop
     delay(500);
     servoM3.write(180);  // Spin in opposite direction
-    delay(500);
+    delay(300);
     servoM3.write(90);  // Stop
     delay(500);
   }
