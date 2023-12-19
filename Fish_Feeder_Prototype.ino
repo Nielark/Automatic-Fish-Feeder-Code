@@ -7,7 +7,7 @@ const int  triggerPin = 5;
 int inches = 0;
 int cm = 0;
 
-const int relayPin = 13;
+const int relayPin = 6;
 
 // Servo variables
 const int servoPin1 = 7;
@@ -21,7 +21,7 @@ Servo servoM3;
 void setup()
 {
   // Set pins to output pins
-  pinMode(relayPin, OUTPUT);
+  pinMode(6, OUTPUT);
 
   servoM1.attach(servoPin1);
   servoM2.attach(servoPin2);
@@ -73,7 +73,7 @@ void loop()
     delay(230);
   }
   servoM3.write(90); // Stop
-  digitalWrite(relayPin, LOW); // Relay trigger to stop the blower
+  digitalWrite(6, LOW); // Relay trigger to stop the blower
 
   delay(10000); // Interval for the next feeding
 }
