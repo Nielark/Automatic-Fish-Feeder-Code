@@ -40,12 +40,12 @@ void loop()
   // M3
   // Dispensed feed and swing left and right
   for(int i = 0; i < 10; i++) {
-    servoM3.write(0); //Spin in one direction
-    delay(200);
+    servoM3.write(30); //Spin in one direction
+    delay(300);
     servoM3.write(90); // Stop
     delay(500);
-    servoM3.write(180);  // Spin in opposite direction
-    delay(200);
+    servoM3.write(150);  // Spin in opposite direction
+    delay(300);
     servoM3.write(90);  // Stop
     delay(500);
   }
