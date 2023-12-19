@@ -7,7 +7,7 @@ const int  triggerPin = 5;
 int inches = 0;
 int cm = 0;
 
-const int relayPin = 6;
+const int relayPin = 13;
 
 // Servo variables
 const int servoPin1 = 7;
