@@ -32,7 +32,7 @@ void setup()
   servoM2.write(0);
   servoM3.write(90);
 
-  digitalWrite(relayPin, LOW); // Set the initial state of relay to low
+  digitalWrite(6, LOW); // Set the initial state of relay to low
 }
 
 void loop()
@@ -52,7 +52,7 @@ void loop()
   delay(3000);
 
   // TODO: Blower code at this part
-  digitalWrite(relayPin, HIGH); // Relay trigger to start the blower
+  digitalWrite(6, HIGH); // Relay trigger to start the blower
 
   // Drop feed from M2 to M3
   servoM2.write(180); // Drop the feeds to M3
