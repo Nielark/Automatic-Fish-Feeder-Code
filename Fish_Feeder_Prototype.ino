@@ -54,9 +54,6 @@ void loop()
 
   // Drop feed from M2 to M3
   servoM2.write(180); // Drop the feeds to M3
-  delay(3000);
-
-  servoM2.write(0); // Return back to the initial position
 
   // M3
   // Dispensed feed and swing left and right
@@ -70,6 +67,8 @@ void loop()
     servoM3.write(90); // Stop
     delay(230);
   }
+
+  servoM2.write(0); // Return back to the initial position
   servoM3.write(90); // Stop
   digitalWrite(13, LOW); // Relay trigger to stop the blower
 
