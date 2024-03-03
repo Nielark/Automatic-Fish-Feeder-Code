@@ -29,6 +29,11 @@ Servo servoM1;
 Servo servoM2;
 Servo servoM3;
 
+// Motor A connections
+int enA = 13;
+int in1 = 12;
+int in2 = 11;
+
 // Array initialization for days
 char daysOfTheWeek[7][12] = {
   "Sun",
@@ -132,6 +137,15 @@ void setup(){
   servoM1.detach();
   servoM2.detach();
   servoM3.detach();
+
+  // Set all the motor control pins to outputs
+  pinMode(enA, OUTPUT);
+	pinMode(in1, OUTPUT);
+	pinMode(in2, OUTPUT);
+
+  // Turn off motors - Initial state
+	digitalWrite(in1, LOW);
+	digitalWrite(in2, LOW);
 }
 
 void loop(){
@@ -1168,6 +1182,9 @@ void dispenseFeed() {
 
   // TODO: Blower code at this part
   digitalWrite(13, HIGH); // Relay trigger to start the blower
+  analogWrite(enA, 255);
+  digitalWrite(in1, HIGH);
+	digitalWrite(in2, LOW);
 
   lcd.setCursor(0, 0);
   lcd.println("M2 PROCESSING");
