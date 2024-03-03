@@ -1225,7 +1225,10 @@ void dispenseFeed() {
 
   // TODO: Blower code at this part
   digitalWrite(13, HIGH); // Relay trigger to start the blower
-
+  analogWrite(enA, 255);
+  digitalWrite(in1, HIGH);
+	digitalWrite(in2, LOW);
+  
   lcd.setCursor(0, 0);
   lcd.println("M2 PROCESSING");
   // Drop feed from M2 to M3
