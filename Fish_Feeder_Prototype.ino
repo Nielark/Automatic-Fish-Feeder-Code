@@ -52,8 +52,8 @@ char hexaKeys[ROWS][COLS] = {
   {'*','0','#','D'}
 };
 
-byte rowPins[ROWS] = {22, 24, 26, 28};  // Connect to the row pinouts of the keypad
-byte colPins[COLS] = {30, 32, 34, 36};  // Connect to the column pinouts of the keypad
+byte rowPins[ROWS] = {36, 38, 40, 42};  // Connect to the row pinouts of the keypad
+byte colPins[COLS] = {44, 46, 48, 50};  // Connect to the column pinouts of the keypad
 
 // Initialize an instance of class NewKeypad
 Keypad customKeypad = Keypad( makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
@@ -89,7 +89,7 @@ quantity feedQuantity[8];
 time feedTime[3];
 int feedSchedCtr = 0, feedSchedPos = -1, feedWeightCtr = 0, feedDispenseCtr = 0;
 int curHour;
-bool deleteFlag = false, weightDeleteFlag = false, schedReturnFlag = false, weightReturnFlag = false;
+bool deleteFlag = false, weightDeleteFlag = false, schedReturnFlag = false, weightReturnFlag = false, menuFlag = false, delMenuFlag = false;
 
 void setup(){
   Serial.begin(9600);
@@ -104,8 +104,8 @@ void setup(){
   //rtc.adjust(DateTime(2024, 1, 4, 11, 37));
 
   // Use the obtained scale and offset values from calibration
-  scale.set_scale(462);  // Replace `calibrationScale` with your obtained scale value
-  scale.set_offset(462);  // Replace `calibrationOffset` with your obtained offset value
+  scale.set_scale(401.735168);  // Replace `calibrationScale` with your obtained scale value
+  scale.set_offset(4294953227);  // Replace `calibrationOffset` with your obtained offset value
 
   lcd.init();
 	lcd.backlight();
@@ -115,6 +115,9 @@ void setup(){
   // Set pins to output pins
   pinMode(13, OUTPUT);
   pinMode(buzzerPin, OUTPUT);
+  pinMode(relayPin, OUTPUT);
+
+  digitalWrite(relayPin, LOW);
 
   servoM1.attach(servoPin1);
   servoM2.attach(servoPin2);
@@ -124,6 +127,11 @@ void setup(){
   servoM1.write(0);
   servoM2.write(0);
   servoM3.write(90);
+
+  delay(2000);
+  servoM1.detach();
+  servoM2.detach();
+  servoM3.detach();
 }
 
 void loop(){
@@ -132,11 +140,11 @@ void loop(){
 
   displayCurTime = millis();
   
-  if(displayCurTime - displayPrevTime >= displayTimer) {
+  if((displayCurTime - displayPrevTime >= displayTimer) && cm < 60) {
     // ULTRASONIC SENSOR READING
     // measure the ping time in cm
     cm = 0.01723 * readUltrasonicDistance(triggerPin, echoPin);
-  
+
     // convert to inches by dividing by 2.54
     inches = (cm / 2.54);
     displayTime(now); // Function call to display current time
@@ -145,6 +153,7 @@ void loop(){
 
   // Condition to check the feed level of the container
   if(cm < 60) {
+    digitalWrite(relayPin, LOW);
     noTone(buzzerPin);
     // Checks if the current time is equal to set time schedule to start feeding
     for (int i = 0; i < 3; i++) {
@@ -159,7 +168,24 @@ void loop(){
     }
   }
   else {
-    tone(buzzerPin, 250);
+    lcd.clear();
+    
+    while(cm > 60) {
+      cm = 0.01723 * readUltrasonicDistance(triggerPin, echoPin);
+      digitalWrite(relayPin, HIGH);
+      tone(buzzerPin, 300, 500);
+
+      //lcd.clear();
+      lcd.setCursor(0, 1);
+      lcd.print("   LOW FEED LEVEL");
+      lcd.setCursor(0, 2);
+      lcd.print(" FEED LEVEL: ");
+      lcd.print(cm);
+      lcd.print(" cm");
+      delay(1000);
+    }
+
+    lcd.clear();
   }
   
 
@@ -168,39 +194,49 @@ void loop(){
   }
   else if(keyInput == 'A') {
     backToMenu:
+    menuFlag = true;
+
     feedSchedMenu();  // Function call to display scheduling options
 
     // Ask input
     lcd.setCursor(0, 3);
     lcd.print("Enter your choice:");
     int choice = getTimeInput(19, 3, 1, 0, 3);
+    menuFlag = false;
 
     switch(choice) {
       case 1:
         viewSched();    // Function call to display the feeding schedules
+        lcd.clear();
         goto backToMenu;
         break;
 
       case 2:
-        addFeedSched();   // Function call for adding feeding schedules 
+        addFeedSched();   // Function call for adding feeding schedules
+        lcd.clear();
         goto backToMenu;
         break;
 
       case 3:
         deleteAgain:
         deleteFlag = true;
+        delMenuFlag = true;
         viewSched();
         deleteFeedSched();    // Function call for deleting schedules
+        delMenuFlag = false;
 
         if(feedSchedCtr == 0 || schedReturnFlag) {
           schedReturnFlag = false;
+          lcd.clear();
           goto backToMenu;
         }
 
+        lcd.clear();
         goto deleteAgain;
         break;
       
       case 0:
+        lcd.clear();
         return;   // Exit
         break;
     }
@@ -208,38 +244,48 @@ void loop(){
   // For setting feed weight info
   else if(keyInput == 'C') {
     backToWeightMenu:
+    menuFlag = true;
+
     setFeedWeightMenu();    // Function call to display the menu about setting feed weight
 
     // Ask input
     lcd.setCursor(0, 3);
     lcd.print("Enter your choice:");
     int choice = getTimeInput(19, 3, 1, 0, 3);
+    menuFlag = false;
 
     switch(choice) {
       case 1:
         viewFeedWeight();   // Function call to view the setted list of feed weight
+        lcd.clear();
         goto backToWeightMenu;
         break;
 
       case 2:
+        menuFlag = true;
         addFeedWeight();    // Function call to add feed weight
+        lcd.clear();
         goto backToWeightMenu;
         break;
 
       case 3:
+        delMenuFlag = true;
         deleteWeightAgain:
         weightDeleteFlag = true;
         viewFeedWeight();
 
         if(feedWeightCtr == 0 || weightReturnFlag) {
           weightReturnFlag = false;
+          lcd.clear();
           goto backToWeightMenu;
         }
 
+        lcd.clear();
         goto deleteWeightAgain;
         break;
       
       case 0:
+        lcd.clear();
         return;   // Exit
         break;
     }
@@ -250,7 +296,7 @@ void displayTime(DateTime currentTime) {
   //displayCurTime = millis();
   
   //if(displayCurTime - displayPrevTime >= displayTimer) {
-    lcd.clear();
+    //lcd.clear();
 
     // Display the date
     lcd.setCursor(0, 0);
@@ -386,6 +432,10 @@ void setTime() {
 }
 
 void viewSched(){
+  top:
+  bool editSchedFlag = false;
+  int editInput;
+
   lcd.clear();
 
   // Prompt if schedule list is empty
@@ -421,10 +471,75 @@ void viewSched(){
     if(exitKey == 'B' && deleteFlag == false) {
       break;
     }
+    else if(isDigit(exitKey) && (exitKey - '0') <= feedSchedCtr && (exitKey - '0') > 0  && deleteFlag == false) {
+      editSchedFlag = true;
+      editInput = exitKey - '0'; // Convert char to int
+      break;
+    }
     else if(deleteFlag == true){
       break;
     }
   }
+
+  if(editSchedFlag) {
+    editFeedSched(editInput);
+    editSchedFlag = false;
+    goto top;
+  }
+}
+
+void editFeedSched(int editInput) {
+  int morningOrAfternoon;
+
+  String fHour = (feedTime[editInput - 1].hour < 10 ? "0" : "") + String(feedTime[editInput - 1].hour);
+  String fMinute = (feedTime[editInput - 1].minute < 10 ? "0" : "") + String(feedTime[editInput - 1].minute);
+  String AMorPM = (feedTime[editInput - 1].isPM ? "PM" : "AM");
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Scheduled Time:");
+  lcd.setCursor(0, 1);
+  lcd.print(String(editInput) + ") " + fHour + ":" + fMinute + " " + AMorPM);
+  
+  lcd.setCursor(0, 2);
+  lcd.print("Enter Hour:");
+  feedTime[editInput - 1].hour = getTimeInput(12, 2, 2, 1, 12);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Scheduled Time:");
+  lcd.setCursor(0, 1);
+  fHour = (feedTime[editInput - 1].hour < 10 ? "0" : "") + String(feedTime[editInput - 1].hour);
+  lcd.print(String(editInput) + ") " + fHour + ":" + fMinute + " " + AMorPM);
+
+  lcd.setCursor(0, 2);
+  lcd.print("Enter Minute:");
+  feedTime[editInput - 1].minute = getTimeInput(14, 2, 2, 0, 59);
+  feedTime[editInput - 1].isActivated = true;
+
+  // Selection for AM and PM
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[1] - AM");
+  lcd.setCursor(0, 1);
+  lcd.print("[2] - PM");
+  lcd.setCursor(0, 2);
+  lcd.print("Enter choice:");
+  morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
+
+  if(morningOrAfternoon == 1) {
+    feedTime[editInput - 1].isPM = false;
+  }
+  else {
+    feedTime[editInput - 1].isPM = true;
+  }
+
+  // int tmpCtnHour = feedTime[feedSchedPos].hour;
+  // int tmpCtnMin = feedTime[feedSchedPos].minute;
+  // EEPROM.update(0, tmpCtnHour);
+  // EEPROM.update(1, tmpCtnMin);
+
+  sortFeedSched();
 }
 
 void addFeedSched() {
@@ -519,6 +634,7 @@ void deleteFeedSched() {
 
   if(delInput == 0){
     schedReturnFlag = true;
+    deleteFlag = false;
     return;
   }
 
@@ -590,7 +706,7 @@ int getTimeInput(int cursorPosCols, int cursorPosRow, int charLen, int minVal, i
   // Input does not meet the requirements
   else {
     lcd.setCursor(0, 3);
-    lcd.print("Invalid Input");
+    lcd.print("   Invalid Input!  ");
 
     // Automatically deletes the incorrect input
     if(cursorPosCtr <= charLen) {
@@ -601,6 +717,29 @@ int getTimeInput(int cursorPosCols, int cursorPosRow, int charLen, int minVal, i
         container.remove(container.length() - 1);
         cursorPosCtr--;
       }
+    }
+
+    // Deletes back the prompt "Invalid Input!" and ask for user input again.
+    if(menuFlag) {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
+      
+      lcd.setCursor(0, 3);
+      lcd.print("Enter your choice:");
+    }
+    else if(delMenuFlag) {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
+      
+      lcd.setCursor(0, 3);
+      lcd.print("Enter the number:");
+    }
+    else {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
     }
 
     goto top;
@@ -714,6 +853,9 @@ int LCD_ROWS = 4; // Define the number of rows in your LCD
 int scrollPosition = 0; // Initialize the scroll position
 
 void viewFeedWeight() {
+  top:
+  bool editWeightFlag = false;
+  int editInput;
   String feedType;
 
   lcd.clear();
@@ -731,6 +873,7 @@ void viewFeedWeight() {
     lcd.setCursor(0, 2);
     lcd.print("No Data to Delete");
     weightDeleteFlag = false;
+    delMenuFlag = false;
     delay(2000);
     return;
   }
@@ -757,31 +900,122 @@ void viewFeedWeight() {
       lcd.print(String(feedQuantity[i].feedWeight) + " kg");
     }
 
-    char exitKey = customKeypad.getKey();
+    char inputKey = customKeypad.getKey();
 
     // Press 'A' to scroll the list upward
-    if (exitKey == 'A') { // Scroll up
+    if (inputKey == 'A') { // Scroll up
       lcd.clear();
       if (scrollPosition > 0) {
         scrollPosition--;
       }
     } 
     // Press 'D' to scroll the list downward
-    else if (exitKey == 'D') { // Scroll down
+    else if (inputKey == 'D') { // Scroll down
       lcd.clear();
       if (scrollPosition < feedWeightCtr - LCD_ROWS) {
         scrollPosition++;
       }
     }
+    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && (inputKey - '0') > 0) {
+      editWeightFlag = true;
+      editInput = inputKey - '0'; // Convert char to int
+      break;
+    }
     // Press 'B' to back
-    else if (exitKey == 'B') {
-      break; // Exit the loop if 'B' is pressed and delete flag is false
+    else if (inputKey == 'B') {
+      break; // Start deletion if 'D' is press
     }
   }
 
-  if(weightDeleteFlag) {
+  if(editWeightFlag && !weightDeleteFlag) {
+    editWeightSched(editInput);
+    editWeightFlag = false;
+    goto top;
+  }
+  else if(!editWeightFlag && weightDeleteFlag) {
     deleteFeedWeight();   // Function call to delete a particular feed weight
   }
+}
+
+void editWeightSched(int editInput) {
+  menuFlag = true;
+  String feedType;
+
+  // Ask user input for editing the feed weight to be dispense
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[1]-Mash");
+  lcd.setCursor(0, 1);
+  lcd.print("[2]-Starter");
+  lcd.setCursor(0, 2);
+  lcd.print("[3]-Grower");
+
+  // Ask input
+  lcd.setCursor(0, 3);
+  lcd.print("Enter your choice:");
+  feedQuantity[editInput - 1].feedType = getTimeInput(19, 3, 1, 1, 3);
+
+  menuFlag = false;
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Current Set Weight:");
+  lcd.setCursor(0, 1);
+  if(feedQuantity[editInput - 1].feedType == 1) {
+    feedType = "Mash";
+  }
+  else if(feedQuantity[editInput - 1].feedType == 2) {
+    feedType = "Starter";
+  }
+  else if(feedQuantity[editInput - 1].feedType == 3) {
+    feedType = "Grower";
+  }
+  lcd.print(String(editInput) + ") " + feedType);
+  lcd.setCursor(13, 1);
+  lcd.print(String(feedQuantity[editInput - 1].feedWeight) + " kg");
+  lcd.setCursor(0, 2);
+  lcd.print("Enter Feed Weight:");
+  feedQuantity[editInput - 1].feedWeight = getDecimalInput(0, 3, 4, 5);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Current Set Weight:");
+  lcd.setCursor(0, 1);
+  if(feedQuantity[editInput - 1].feedType == 1) {
+    feedType = "Mash";
+  }
+  else if(feedQuantity[editInput - 1].feedType == 2) {
+    feedType = "Starter";
+  }
+  else if(feedQuantity[editInput - 1].feedType == 3) {
+    feedType = "Grower";
+  }
+  lcd.print(String(editInput) + ") " + feedType);
+  lcd.setCursor(13, 1);
+  lcd.print(String(feedQuantity[editInput - 1].feedWeight) + " kg");
+  lcd.setCursor(0, 2);
+  lcd.print("Enter week duration:");
+  feedQuantity[editInput - 1].weekDuration = getTimeInput(0, 3, 2, 1, 10);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Current Set Weight:");
+  lcd.setCursor(0, 1);
+  lcd.print(String(editInput) + ") " + feedType);
+  lcd.setCursor(13, 1);
+  lcd.print(String(feedQuantity[editInput - 1].feedWeight) + " kg");
+  lcd.setCursor(0, 2);
+  lcd.print("Enter how many times");
+  lcd.setCursor(0, 3);
+  lcd.print("a day:");
+  feedQuantity[editInput - 1].howManyTimesADay = getTimeInput(7, 3, 1, 1,9);
+
+  feedQuantity[editInput - 1].totalNumOfTimes = (feedQuantity[editInput - 1].weekDuration * 7) * feedQuantity[editInput - 1].howManyTimesADay;
+  feedQuantity[editInput - 1].isActivated = true;
+  feedQuantity[editInput - 1].isFinished = false;
+
+  updateWeightEEPROM();
 }
 
 void addFeedWeight() {
@@ -797,9 +1031,17 @@ void addFeedWeight() {
     // Ask input
     lcd.setCursor(0, 3);
     lcd.print("Enter your choice:");
-    feedQuantity[feedWeightCtr].feedType = getTimeInput(19, 3, 1, 0, 3);
+    int input = getTimeInput(19, 3, 1, 0, 3);
+
+    if(input == 0){
+      return;
+    }
+
+    feedQuantity[feedWeightCtr].feedType = input;
   }
 
+  menuFlag = false;
+  
   // Ask user input for setting up feed weight to be dispense
 
   lcd.clear();
@@ -836,6 +1078,8 @@ void deleteFeedWeight() {
 
   if(delInput == 0){
     weightReturnFlag = true;
+    weightDeleteFlag = false;
+    delMenuFlag = false;
     return;
   }
 
@@ -867,9 +1111,12 @@ void deleteFeedWeight() {
   }
 
   weightDeleteFlag = false;
+  delMenuFlag = false;
 }
 
 void dispenseFeed() {
+  servoM1.attach(servoPin1);
+
   double weight = scale.get_units();  // Get weight measurement in the desired unit
 
   // M1
@@ -887,13 +1134,13 @@ void dispenseFeed() {
   }
   
   if(feedQuantity[feedDispenseCtr].totalNumOfTimes != 0) {
+    servoM2.detach();
     const unsigned long weightTimer = 1000;
     unsigned long weightPrevTime = 0;
     unsigned long weightCurrTime = 0;
 
     while(weight < feedQuantity[feedDispenseCtr].feedWeight) {
       weightCurrTime = millis();
-      weight /= 1000;   // Divide weight by 1000 to convert grams into kilograms
       weight = scale.get_units();  // Get weight measurement in the desired unit
       if(weightCurrTime - weightPrevTime >= weightTimer) {
         displayWeightLCD(weight);   // Function call to display the current feed weight on the LCD
@@ -902,6 +1149,8 @@ void dispenseFeed() {
       }
     }
 
+    servoM2.attach(servoPin2);
+    servoM3.attach(servoPin3);
     EEPROM.update(101, feedDispenseCtr);
 
     feedQuantity[feedDispenseCtr].totalNumOfTimes--;
@@ -912,6 +1161,8 @@ void dispenseFeed() {
   }
   
   //delay(5000);
+  
+  displayWeightLCD(weight);   // Function call to display the current feed weight on the LCD
   
   delay(3000);
 
@@ -942,6 +1193,11 @@ void dispenseFeed() {
   servoM2.write(0); // Return back to the initial position
   servoM3.write(90); // Stop
   digitalWrite(13, LOW); // Relay trigger to stop the blower
+  
+  delay(2000);
+  servoM1.detach();
+  servoM2.detach();
+  servoM3.detach();
 }
 
 void displayWeightLCD(double weight) {
@@ -963,7 +1219,7 @@ void displayFeedLevel() {
   lcd.print(" cm");
 }
 
-float getDecimalInput(int cursorPosCols, int cursorPosRow, int charLen, float maxVal) {
+double getDecimalInput(int cursorPosCols, int cursorPosRow, int charLen, float maxVal) {
   int cursorPos = cursorPosCols - 1;
   int cursorPosCtr = 0;
   String container = "";
@@ -998,7 +1254,7 @@ float getDecimalInput(int cursorPosCols, int cursorPosRow, int charLen, float ma
     }
   }
 
-  float inputValue = container.toFloat();
+  double inputValue = container.toDouble();
 
   // Save the value when it meets the requirements
   if(inputValue > 0 && inputValue <= maxVal) {
@@ -1007,7 +1263,8 @@ float getDecimalInput(int cursorPosCols, int cursorPosRow, int charLen, float ma
   // Input does not meet the requirements
   else {
     lcd.setCursor(0, 3);
-    lcd.print("Invalid Input");
+    lcd.print("   Invalid Input!  ");
+
     if(cursorPosCtr <= charLen) {
       while(cursorPosCtr != 0) {
         // Deletes all the input in the LCD when input is invalid
@@ -1017,6 +1274,21 @@ float getDecimalInput(int cursorPosCols, int cursorPosRow, int charLen, float ma
         container.remove(container.length() - 1);
         cursorPosCtr--;
       }
+    }
+
+    // Deletes back the prompt "Invalid Input!" and ask for user input again.
+    if(menuFlag) {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
+      
+      lcd.setCursor(0, 3);
+      lcd.print("Enter your choice:");
+    }
+    else {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
     }
 
     goto top;
