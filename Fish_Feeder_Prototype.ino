@@ -20,8 +20,8 @@
 
 // Your WiFi credentials.
 // Set password to "" for open networks.
-char ssid[] = "iCARE";
-char pass[] = "ICARE2023";
+char ssid[] = "GlobeAtHome_E719F";
+char pass[] = "qdx4xD5SBoi";
 
 // Hardware Serial on Mega, Leonardo, Micro...
 #define EspSerial Serial1
