@@ -7,6 +7,32 @@
 #include "HX711.h"
 #include "ultrasonic.h"
 
+/* Fill-in information from Blynk Device Info here */
+#define BLYNK_TEMPLATE_ID "TMPL6lkIFhvkf"
+#define BLYNK_TEMPLATE_NAME "Fish Feeder"
+#define BLYNK_AUTH_TOKEN "Fv-shTgYgNiRVSnHVH5Od9paPVMJK4lz"
+
+/* Comment this out to disable prints and save space */
+#define BLYNK_PRINT Serial
+
+#include <ESP8266_Lib.h>
+#include <BlynkSimpleShieldEsp8266.h>
+
+// Your WiFi credentials.
+// Set password to "" for open networks.
+char ssid[] = "iCARE";
+char pass[] = "ICARE2023";
+
+// Hardware Serial on Mega, Leonardo, Micro...
+#define EspSerial Serial1
+
+// Your ESP8266 baud rate:
+#define ESP8266_BAUD 38400
+
+ESP8266 wifi(&EspSerial);
+
+BlynkTimer timer;
+
 // Load cell variables
 const int pinDT = 2;
 const int pinSCK = 3;
@@ -28,6 +54,11 @@ const int buzzerPin = 10;
 Servo servoM1;
 Servo servoM2;
 Servo servoM3;
+
+// Motor A connections
+int enA = 13;
+int in1 = 12;
+int in2 = 11;
 
 // Array initialization for days
 char daysOfTheWeek[7][12] = {
@@ -91,6 +122,14 @@ int feedSchedCtr = 0, feedSchedPos = -1, feedWeightCtr = 0, feedDispenseCtr = 0;
 int curHour;
 bool deleteFlag = false, weightDeleteFlag = false, schedReturnFlag = false, weightReturnFlag = false, menuFlag = false, delMenuFlag = false;
 
+void myTimer() 
+{
+  // This function describes what will happen with each timer tick
+  // e.g. writing sensor value to datastream V5
+  Blynk.virtualWrite(V0, cm);
+  Blynk.virtualWrite(V1, feedQuantity[0].feedType);  
+}
+
 void setup(){
   Serial.begin(9600);
   rtc.begin();
@@ -128,13 +167,31 @@ void setup(){
   servoM2.write(0);
   servoM3.write(90);
 
+  // Set all the motor control pins to outputs
+  pinMode(enA, OUTPUT);
+	pinMode(in1, OUTPUT);
+	pinMode(in2, OUTPUT);
+
+  // Turn off motors - Initial state
+	digitalWrite(in1, LOW);
+	digitalWrite(in2, LOW);
+
   delay(2000);
   servoM1.detach();
   servoM2.detach();
   servoM3.detach();
+
+  EspSerial.begin(ESP8266_BAUD);
+  delay(10);
+  
+  Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
+
+  timer.setInterval(1000L, myTimer);
 }
 
 void loop(){
+  Blynk.run();
+  timer.run(); 
   char keyInput = customKeypad.getKey();  // For getting keypad inputs
   DateTime now = rtc.now();
 
