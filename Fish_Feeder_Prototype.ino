@@ -1189,7 +1189,11 @@ void dispenseFeed() {
   lcd.setCursor(0, 0);
   lcd.println("M2 PROCESSING");
   // Drop feed from M2 to M3
-  servoM2.write(180); // Drop the feeds to M3
+  //servoM2.write(180); // Drop the feeds to M3
+  int servoPos = 0;
+  const unsigned long dropTimer = 10;
+  unsigned long dropPrevTime = 0;
+  unsigned long dropCurrTime = 0;
 
   // M3
   // Dispensed feed and swing left and right
@@ -1197,14 +1201,18 @@ void dispenseFeed() {
   lcd.setCursor(0, 0);
   lcd.println("M3 PROCESSING");
   for(int i = 0; i < 20; i++) {
+    dropCurrTime = millis();
+    if(dropCurrTime - dropPrevTime >= dropTimer && servoPos != 180) {
+      servoPos += 20;
+      servoM2.write(servoPos);
+
+      dropPrevTime = dropCurrTime;
+    }
+
     servoM3.write(0); //Spin in one direction
-    delay(200);
-    servoM3.write(90); // Stop
-    delay(230);
+    delay(500);
     servoM3.write(180); // Spin in opposite direction
-    delay(200);
-    servoM3.write(90); // Stop
-    delay(230);
+    delay(500);
   }
 
   servoM2.write(0); // Return back to the initial position
