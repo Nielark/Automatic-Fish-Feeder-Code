@@ -133,11 +133,6 @@ void setup(){
   servoM2.write(0);
   servoM3.write(90);
 
-  delay(2000);
-  servoM1.detach();
-  servoM2.detach();
-  servoM3.detach();
-
   // Set all the motor control pins to outputs
   pinMode(enA, OUTPUT);
 	pinMode(in1, OUTPUT);
@@ -146,6 +141,11 @@ void setup(){
   // Turn off motors - Initial state
 	digitalWrite(in1, LOW);
 	digitalWrite(in2, LOW);
+
+  delay(2000);
+  servoM1.detach();
+  servoM2.detach();
+  servoM3.detach();
 }
 
 void loop(){
