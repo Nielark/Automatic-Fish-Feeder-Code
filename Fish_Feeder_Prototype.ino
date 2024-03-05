@@ -1190,7 +1190,8 @@ void dispenseFeed() {
   lcd.println("M2 PROCESSING");
   // Drop feed from M2 to M3
   //servoM2.write(180); // Drop the feeds to M3
-  int servoPos = 0;
+  int servoM2Pos = 0;
+  int servoM3Pos = 0;
   const unsigned long dropTimer = 10;
   unsigned long dropPrevTime = 0;
   unsigned long dropCurrTime = 0;
@@ -1202,16 +1203,20 @@ void dispenseFeed() {
   lcd.println("M3 PROCESSING");
   for(int i = 0; i < 20; i++) {
     dropCurrTime = millis();
-    if(dropCurrTime - dropPrevTime >= dropTimer && servoPos != 180) {
-      servoPos += 20;
-      servoM2.write(servoPos);
-
-      dropPrevTime = dropCurrTime;
+    if (dropCurrTime - dropPrevTime >= dropTimer && servoM2Pos != 180) {
+        servoM2Pos += 20;
+        servoM2.write(servoM2Pos);
+        dropPrevTime = dropCurrTime;
     }
 
-    servoM3.write(0); //Spin in one direction
-    delay(500);
-    servoM3.write(180); // Spin in opposite direction
+    if (i % 2 == 0) {
+        servoM3Pos = 0; //Spin in one direction
+    }
+    else {
+        servoM3Pos = 180; // Spin in opposite direction
+    }
+
+    servoM3.write(servoM3Pos);
     delay(500);
   }
 
@@ -1226,7 +1231,6 @@ void dispenseFeed() {
 }
 
 void displayWeightLCD(double weight) {
-  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Setted Weight: ");
   lcd.setCursor(0, 1);
@@ -1234,7 +1238,23 @@ void displayWeightLCD(double weight) {
   lcd.setCursor(0, 2);
   lcd.print("Current Weight: ");
   lcd.setCursor(0, 3);
-  lcd.print(String(weight) + " Kg");
+  
+  lcd.print(weight);
+
+  if(weight < 0.00) {
+    lcd.setCursor(5, 3);
+    lcd.print(" ");
+    lcd.setCursor(6, 3);
+  }
+  else {
+    lcd.setCursor(4, 3);
+    lcd.print(" ");
+    lcd.setCursor(7, 3);
+    lcd.print(" ");
+    lcd.setCursor(5, 3);  
+  }
+  
+  lcd.print("Kg");
 }
 
 void displayFeedLevel() {
