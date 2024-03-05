@@ -1238,7 +1238,6 @@ void displayWeightLCD(double weight) {
   lcd.setCursor(0, 2);
   lcd.print("Current Weight: ");
   lcd.setCursor(0, 3);
-
   lcd.print(weight);
 
   if(weight < 0.00) {
