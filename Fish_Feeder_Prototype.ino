@@ -5,7 +5,6 @@
 #include <Wire.h> 
 #include <EEPROM.h>
 #include "HX711.h"
-#include "ultrasonic.h"
 
 // Load cell variables
 const int pinDT = 2;
@@ -179,6 +178,35 @@ void loop(){
     inches = (cm / 2.54);
     displayTime(now); // Function call to display current time
     displayFeedLevel(); // Function call to display feed level
+
+    for(int i = 0; i < tempSchedCtr; i++) {
+      Serial.println(tempSched[i].month);
+      Serial.println(tempSched[i].day);
+      Serial.println(tempSched[i].hour);
+      Serial.println(tempSched[i].minute);
+      Serial.println(tempSched[i].isPM);
+      Serial.println(tempSched[i].feedWeight);
+      Serial.println(tempSched[i].isActivated);
+      Serial.println(tempSched[i].isFinished);
+    }
+
+      Serial.println(tempSched[0].month);
+      Serial.println(tempSched[0].day);
+      Serial.println(tempSched[0].hour);
+      Serial.println(tempSched[0].minute);
+      Serial.println(tempSched[0].isPM);
+      Serial.println(tempSched[0].feedWeight);
+      Serial.println(tempSched[0].isActivated);
+      Serial.println(tempSched[0].isFinished);
+
+      Serial.println(tempSched[9].month);
+      Serial.println(tempSched[9].day);
+      Serial.println(tempSched[9].hour);
+      Serial.println(tempSched[9].minute);
+      Serial.println(tempSched[9].isPM);
+      Serial.println(tempSched[9].feedWeight);
+      Serial.println(tempSched[9].isActivated);
+      Serial.println(tempSched[9].isFinished);
   }
 
   // Condition to check the feed level of the container
@@ -771,7 +799,7 @@ void deleteFeedSched() {
 void viewTemporarySched() {
   top:
   bool editSchedFlag = false;
-  int editInput, scrollCtr = 0;
+  int editInput, delInput, doubleDigit = 0, scrollCtr = 0;
 
   lcd.clear();
 
@@ -847,20 +875,38 @@ void viewTemporarySched() {
       deleteFlag = false;
       return;
     }
-    else if(exitKey == 'C' && deleteFlag == true) {
-      // Call the function to delete
-      lcd.setCursor(0, 3);
-      lcd.print("                    ");
-      deleteTemporarySched();
-      lcd.clear();
-      goto top;
+    else if(exitKey == 'C' && tempSchedCtr >= 10 && doubleDigit < tempSchedCtr ){
+      doubleDigit += 10;
+      Serial.print(doubleDigit);
     }
-    else if(isDigit(exitKey) && (exitKey - '0') <= tempSchedCtr && (exitKey - '0') > 0  && deleteFlag == false) {
+    // else if(exitKey == 'C' && deleteFlag == true) {
+    //   // Call the function to delete
+    //   lcd.setCursor(0, 3);
+    //   lcd.print("                    ");
+    //   deleteTemporarySched();
+    //   lcd.clear();
+    //   goto top;
+    // }
+    else if(isDigit(exitKey) && (exitKey - '0') <= tempSchedCtr && (exitKey - '0') > 0 && deleteFlag == false) {
       // Select the number to edit the sched
       editSchedFlag = true;
       editInput = exitKey - '0'; // Convert char to int
-      editInput = editInput - 1; 
+      editInput += doubleDigit;
+      // editInput = editInput - 1; 
       break;
+    }
+    else if(isDigit(exitKey) && (exitKey - '0') <= tempSchedCtr && deleteFlag == true) {
+      // Select the number to delete the sched
+      delInput = exitKey - '0'; // Convert char to int
+      delInput += doubleDigit;
+
+      if(delInput <= tempSchedCtr) {
+        deleteTemporarySched(delInput);
+      }
+
+      //editInput = editInput - 1; 
+      //break;
+      goto top;
     }
     // else if(deleteFlag == true){
     //   break;
@@ -868,7 +914,12 @@ void viewTemporarySched() {
   }
 
   if(editSchedFlag) {
-    editTemporarySched(editInput);
+    editInput = editInput - 1;
+
+    if(editInput <= tempSchedCtr) {
+      editTemporarySched(editInput);
+    }
+
     editSchedFlag = false;
     goto top;
   }
@@ -1072,27 +1123,53 @@ void addTemporarySched() {
   tempSchedPos = -1;
 }
 
-void deleteTemporarySched() {
-  lcd.setCursor(0, 3);
-  lcd.print("Enter the number:");
-  int delInput = getTimeInput(18, 3, 1, 0, 3);
+void deleteTemporarySched(int delInput) {
+  Serial.print(delInput);
+  // lcd.setCursor(0, 3);
+  // lcd.print("Enter the number:");
+  // int delInput = getTimeInput(18, 3, 2, 0, tempSchedCtr);
 
   if(delInput == 0){
     schedReturnFlag = true;
     //deleteFlag = true;
     return;
   }
+  
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Delete sched " + String(delInput));
+  lcd.setCursor(0, 1);
+  lcd.print("[1]-YES");
+  lcd.setCursor(0, 2);
+  lcd.print("[2]-CANCEL");
+  lcd.setCursor(0, 3);
+  lcd.print("Enter your choice:");
+  int choice = getTimeInput(19, 3, 1, 1, 2);
 
-  delInput = delInput - 1; // Subtract one on the number to delete to locate it using array index
+  if(choice == 1){
+    delInput = delInput - 1; // Subtract one on the number to delete to locate it using array index
 
-  for(int i = delInput; i < tempSchedCtr; i++){
-    //updateFeedSchedEEPROM();
-    tempSched[i] = tempSched[i + 1];
+    for(int i = delInput; i < tempSchedCtr; i++){
+      //updateFeedSchedEEPROM();
+      if(i == 9){
+        tempSched[i].month = 0;
+        tempSched[i].day = 0;
+        tempSched[i].hour = 0;
+        tempSched[i].minute = 0;
+        tempSched[i].isPM = 0;
+        tempSched[i].feedWeight = 0;
+        tempSched[i].isActivated = 0;
+        tempSched[i].isFinished = 0;
+      }
+      else {
+        tempSched[i] = tempSched[i + 1];
+      }
+    }
+
+    tempSchedCtr--;   // Decrement the number of schedule
+    //EEPROM.update(12, tempSchedCtr);
+    //deleteFlag = false;
   }
-
-  tempSchedCtr--;   // Decrement the number of schedule
-  //EEPROM.update(12, tempSchedCtr);
-  //deleteFlag = false;
 }
 
 int getTimeInput(int cursorPosCols, int cursorPosRow, int charLen, int minVal, int maxVal) {
@@ -1291,14 +1368,10 @@ void setFeedWeightMenu() {
   lcd.print("[3]-Delete");
 }
 
-int LCD_ROWS = 4; // Define the number of rows in your LCD
-
-int scrollPosition = 0; // Initialize the scroll position
-
 void viewFeedWeight() {
   top:
   bool editWeightFlag = false;
-  int editInput;
+  int editInput, delInput, doubleDigit = 0, scrollCtr = 0;
   String feedType;
 
   lcd.clear();
@@ -1321,63 +1394,82 @@ void viewFeedWeight() {
     return;
   }
 
-  LCD_ROWS = (weightDeleteFlag? 3 : 4);
-
   // Display the weight List
-  while (true) {
-    for (int i = scrollPosition; i < min(feedWeightCtr, scrollPosition + LCD_ROWS); i++) {
-      lcd.setCursor(0, i - scrollPosition);
-
-      if(feedQuantity[i].feedType == 1) {
-        feedType = "Mash";
-      }
-      else if(feedQuantity[i].feedType == 2) {
-        feedType = "Starter";
-      }
-      else if(feedQuantity[i].feedType == 3) {
-        feedType = "Grower";
-      }
-
-      lcd.print(String(i + 1) + ") " + feedType);
-      lcd.setCursor(13, i - scrollPosition);
-      lcd.print(String(feedQuantity[i].feedWeight) + " kg");
+  while(true){
+    if(feedQuantity[scrollCtr].feedType == 1) {
+      feedType = "Mash";
     }
+    else if(feedQuantity[scrollCtr].feedType == 2) {
+      feedType = "Starter";
+    }
+    else if(feedQuantity[scrollCtr].feedType == 3) {
+      feedType = "Grower";
+    }
+
+    lcd.setCursor(0, 0);
+    lcd.print("FEED INFORMATION " + String(scrollCtr + 1));
+    lcd.setCursor(0, 1);
+    lcd.print(feedType + "    " + String(feedQuantity[scrollCtr].feedWeight) + " Kg");
+    lcd.setCursor(0, 2);
+    lcd.print(String(feedQuantity[scrollCtr].weekDuration) + " week/s, " + String(feedQuantity[scrollCtr].howManyTimesADay) + "x a day");
+    lcd.setCursor(0, 3);
+    lcd.print("Last " + String(feedQuantity[scrollCtr].totalNumOfTimes) + " dispense");
 
     char inputKey = customKeypad.getKey();
 
     // Press 'A' to scroll the list upward
     if (inputKey == 'A') { // Scroll up
       lcd.clear();
-      if (scrollPosition > 0) {
-        scrollPosition--;
+      if(scrollCtr > 0) {
+        scrollCtr--;
       }
     } 
     // Press 'D' to scroll the list downward
     else if (inputKey == 'D') { // Scroll down
       lcd.clear();
-      if (scrollPosition < feedWeightCtr - LCD_ROWS) {
-        scrollPosition++;
+      if(scrollCtr < (feedWeightCtr - 1)) {
+        scrollCtr++;
       }
     }
-    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && (inputKey - '0') > 0) {
+    // Press 'B' to back
+    else if(inputKey == 'B') {
+      weightReturnFlag = true;
+      weightDeleteFlag = false;
+      delMenuFlag = false;
+      return;
+    }
+    else if(inputKey == 'C' && feedWeightCtr >= 10 && doubleDigit < feedWeightCtr){
+      doubleDigit += 10;
+      Serial.print(doubleDigit);
+    }
+    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && (inputKey - '0') > 0 && weightDeleteFlag == false) {
       editWeightFlag = true;
       editInput = inputKey - '0'; // Convert char to int
-      break;
+      editInput -= 1;
+      editInput += doubleDigit;
+      editWeightSched(editInput);
+      goto top;
     }
-    // Press 'B' to back
-    else if (inputKey == 'B') {
-      break; // Start deletion if 'D' is press
+    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && (inputKey - '0') > 0 && weightDeleteFlag == true) {
+      delInput = inputKey - '0'; // Convert char to int
+      delInput += doubleDigit;
+
+      if(delInput <= feedWeightCtr) {
+        deleteFeedWeight(delInput);
+      }
+
+      goto top;
     }
   }
 
-  if(editWeightFlag && !weightDeleteFlag) {
-    editWeightSched(editInput);
-    editWeightFlag = false;
-    goto top;
-  }
-  else if(!editWeightFlag && weightDeleteFlag) {
-    deleteFeedWeight();   // Function call to delete a particular feed weight
-  }
+  // if(editWeightFlag && !weightDeleteFlag) {
+  //   editWeightSched(editInput);
+  //   editWeightFlag = false;
+  //   goto top;
+  // }
+  // else if(!editWeightFlag && weightDeleteFlag) {
+  //   deleteFeedWeight();   // Function call to delete a particular feed weight
+  // }
 }
 
 void editWeightSched(int editInput) {
@@ -1397,7 +1489,7 @@ void editWeightSched(int editInput) {
   // Ask input
   lcd.setCursor(0, 3);
   lcd.print("Enter your choice:");
-  feedQuantity[editInput - 1].feedType = getTimeInput(19, 3, 1, 1, 3);
+  feedQuantity[editInput].feedType = getTimeInput(19, 3, 1, 1, 3);
 
   menuFlag = false;
 
@@ -1405,58 +1497,58 @@ void editWeightSched(int editInput) {
   lcd.setCursor(0, 0);
   lcd.print("Current Set Weight:");
   lcd.setCursor(0, 1);
-  if(feedQuantity[editInput - 1].feedType == 1) {
+  if(feedQuantity[editInput].feedType == 1) {
     feedType = "Mash";
   }
-  else if(feedQuantity[editInput - 1].feedType == 2) {
+  else if(feedQuantity[editInput].feedType == 2) {
     feedType = "Starter";
   }
-  else if(feedQuantity[editInput - 1].feedType == 3) {
+  else if(feedQuantity[editInput].feedType == 3) {
     feedType = "Grower";
   }
-  lcd.print(String(editInput) + ") " + feedType);
+  lcd.print(String(editInput + 1) + ") " + feedType);
   lcd.setCursor(13, 1);
-  lcd.print(String(feedQuantity[editInput - 1].feedWeight) + " kg");
+  lcd.print(String(feedQuantity[editInput].feedWeight) + " kg");
   lcd.setCursor(0, 2);
   lcd.print("Enter Feed Weight:");
-  feedQuantity[editInput - 1].feedWeight = getDecimalInput(0, 3, 4, 5);
+  feedQuantity[editInput].feedWeight = getDecimalInput(0, 3, 4, 5);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Current Set Weight:");
   lcd.setCursor(0, 1);
-  if(feedQuantity[editInput - 1].feedType == 1) {
+  if(feedQuantity[editInput].feedType == 1) {
     feedType = "Mash";
   }
-  else if(feedQuantity[editInput - 1].feedType == 2) {
+  else if(feedQuantity[editInput].feedType == 2) {
     feedType = "Starter";
   }
-  else if(feedQuantity[editInput - 1].feedType == 3) {
+  else if(feedQuantity[editInput].feedType == 3) {
     feedType = "Grower";
   }
-  lcd.print(String(editInput) + ") " + feedType);
+  lcd.print(String(editInput + 1) + ") " + feedType);
   lcd.setCursor(13, 1);
-  lcd.print(String(feedQuantity[editInput - 1].feedWeight) + " kg");
+  lcd.print(String(feedQuantity[editInput].feedWeight) + " kg");
   lcd.setCursor(0, 2);
   lcd.print("Enter week duration:");
-  feedQuantity[editInput - 1].weekDuration = getTimeInput(0, 3, 2, 1, 10);
+  feedQuantity[editInput].weekDuration = getTimeInput(0, 3, 2, 1, 10);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Current Set Weight:");
   lcd.setCursor(0, 1);
-  lcd.print(String(editInput) + ") " + feedType);
+  lcd.print(String(editInput + 1) + ") " + feedType);
   lcd.setCursor(13, 1);
-  lcd.print(String(feedQuantity[editInput - 1].feedWeight) + " kg");
+  lcd.print(String(feedQuantity[editInput].feedWeight) + " kg");
   lcd.setCursor(0, 2);
   lcd.print("Enter how many times");
   lcd.setCursor(0, 3);
   lcd.print("a day:");
-  feedQuantity[editInput - 1].howManyTimesADay = getTimeInput(7, 3, 1, 1,9);
+  feedQuantity[editInput].howManyTimesADay = getTimeInput(7, 3, 1, 1,9);
 
-  feedQuantity[editInput - 1].totalNumOfTimes = (feedQuantity[editInput - 1].weekDuration * 7) * feedQuantity[editInput - 1].howManyTimesADay;
-  feedQuantity[editInput - 1].isActivated = true;
-  feedQuantity[editInput - 1].isFinished = false;
+  feedQuantity[editInput].totalNumOfTimes = (feedQuantity[editInput].weekDuration * 7) * feedQuantity[editInput].howManyTimesADay;
+  feedQuantity[editInput].isActivated = true;
+  feedQuantity[editInput].isFinished = false;
 
   updateWeightEEPROM();
 }
@@ -1481,43 +1573,50 @@ void addFeedWeight() {
     }
 
     feedQuantity[feedWeightCtr].feedType = input;
-  }
 
-  menuFlag = false;
+    menuFlag = false;
   
-  // Ask user input for setting up feed weight to be dispense
+    // Ask user input for setting up feed weight to be dispense
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Enter Feed Weight:");
-  feedQuantity[feedWeightCtr].feedWeight = getDecimalInput(0, 1, 4, 5);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Enter Feed Weight:");
+    feedQuantity[feedWeightCtr].feedWeight = getDecimalInput(0, 1, 4, 5);
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Enter week duration:");
-  feedQuantity[feedWeightCtr].weekDuration = getTimeInput(0, 1, 2, 1, 10);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Enter week duration:");
+    feedQuantity[feedWeightCtr].weekDuration = getTimeInput(0, 1, 2, 1, 10);
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Enter how many times");
-  lcd.setCursor(0, 1);
-  lcd.print("a day:");
-  feedQuantity[feedWeightCtr].howManyTimesADay = getTimeInput(7, 1, 1, 1,9);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Enter how many times");
+    lcd.setCursor(0, 1);
+    lcd.print("a day:");
+    feedQuantity[feedWeightCtr].howManyTimesADay = getTimeInput(7, 1, 1, 1,9);
 
-  feedQuantity[feedWeightCtr].totalNumOfTimes = (feedQuantity[feedWeightCtr].weekDuration * 7) * feedQuantity[feedWeightCtr].howManyTimesADay;
-  feedQuantity[feedWeightCtr].isActivated = true;
-  feedQuantity[feedWeightCtr].isFinished = false;
+    feedQuantity[feedWeightCtr].totalNumOfTimes = (feedQuantity[feedWeightCtr].weekDuration * 7) * feedQuantity[feedWeightCtr].howManyTimesADay;
+    feedQuantity[feedWeightCtr].isActivated = true;
+    feedQuantity[feedWeightCtr].isFinished = false;
 
-  feedWeightCtr++;
-  EEPROM.update(100, feedWeightCtr);
+    feedWeightCtr++;
+    EEPROM.update(100, feedWeightCtr);
 
-  updateWeightEEPROM();
+    updateWeightEEPROM();
+  }
+  
+  if(feedWeightCtr >= 8) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("All 8 weights are set");
+    delay(3000);
+  }
 }
 
-void deleteFeedWeight() {
-  lcd.setCursor(0, 3);
-  lcd.print("Enter the number:");
-  int delInput = getTimeInput(18, 3, 1, 0, feedWeightCtr);
+void deleteFeedWeight(int delInput) {
+  // lcd.setCursor(0, 3);
+  // lcd.print("Enter the number:");
+  // int delInput = getTimeInput(18, 3, 1, 0, feedWeightCtr);
 
   if(delInput == 0){
     weightReturnFlag = true;
@@ -1526,35 +1625,74 @@ void deleteFeedWeight() {
     return;
   }
 
-  for(int i = 0; i < feedWeightCtr; i++){
-    // Condition to find if the information from the input match the selected weight list to delete
-    if(feedQuantity[i].feedType == feedQuantity[delInput - 1].feedType && 
-      feedQuantity[i].feedWeight == feedQuantity[delInput - 1].feedWeight &&
-      feedQuantity[i].howManyTimesADay == feedQuantity[delInput - 1].howManyTimesADay &&
-      feedQuantity[i].totalNumOfTimes == feedQuantity[delInput - 1].totalNumOfTimes &&
-      feedQuantity[i].isActivated == feedQuantity[delInput - 1].isActivated &&
-      feedQuantity[i].isFinished == feedQuantity[delInput - 1].isFinished)
-    {
-      // Traverse the position of array elements for deletion
-      for(int j = i; j < feedWeightCtr; j++){
-        feedQuantity[j].feedType = feedQuantity[j + 1].feedType;
-        feedQuantity[j].feedWeight = feedQuantity[j + 1].feedWeight;
-        feedQuantity[j].howManyTimesADay = feedQuantity[j + 1].howManyTimesADay;
-        feedQuantity[j].totalNumOfTimes = feedQuantity[j + 1].totalNumOfTimes;
-        feedQuantity[j].isActivated = feedQuantity[j + 1].isActivated;
-        feedQuantity[j].isFinished = feedQuantity[j + 1].isFinished;
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Delete sched " + String(delInput));
+  lcd.setCursor(0, 1);
+  lcd.print("[1]-YES");
+  lcd.setCursor(0, 2);
+  lcd.print("[2]-CANCEL");
+  lcd.setCursor(0, 3);
+  lcd.print("Enter your choice:");
+  int choice = getTimeInput(19, 3, 1, 1, 2);
+
+  if(choice == 1){
+    delInput = delInput - 1; // Subtract one on the number to delete to locate it using array index
+
+    for(int i = delInput; i < feedWeightCtr; i++){
+      //updateFeedSchedEEPROM();
+      if(i == 9){
+        feedQuantity[i].feedType = 0;
+        feedQuantity[i].feedWeight = 0;
+        feedQuantity[i].weekDuration = 0;
+        feedQuantity[i].howManyTimesADay = 0;
+        feedQuantity[i].totalNumOfTimes = 0;
+        feedQuantity[i].feedWeight = 0;
+        feedQuantity[i].isActivated = 0;
+        feedQuantity[i].isFinished = 0;
+      }
+      else {
+        feedQuantity[i] = feedQuantity[i + 1];
       }
 
       updateWeightEEPROM();
-
-      feedWeightCtr--;  // Decrement the number of weight list
-      EEPROM.update(100, feedWeightCtr);
-      break;
     }
+
+    feedWeightCtr--;   // Decrement the number of schedule
+    EEPROM.update(100, feedWeightCtr);
   }
 
-  weightDeleteFlag = false;
-  delMenuFlag = false;
+
+
+  // for(int i = 0; i < feedWeightCtr; i++){
+  //   // Condition to find if the information from the input match the selected weight list to delete
+  //   if(feedQuantity[i].feedType == feedQuantity[delInput - 1].feedType && 
+  //     feedQuantity[i].feedWeight == feedQuantity[delInput - 1].feedWeight &&
+  //     feedQuantity[i].howManyTimesADay == feedQuantity[delInput - 1].howManyTimesADay &&
+  //     feedQuantity[i].totalNumOfTimes == feedQuantity[delInput - 1].totalNumOfTimes &&
+  //     feedQuantity[i].isActivated == feedQuantity[delInput - 1].isActivated &&
+  //     feedQuantity[i].isFinished == feedQuantity[delInput - 1].isFinished)
+  //   {
+  //     // Traverse the position of array elements for deletion
+  //     for(int j = i; j < feedWeightCtr; j++){
+  //       feedQuantity[j].feedType = feedQuantity[j + 1].feedType;
+  //       feedQuantity[j].feedWeight = feedQuantity[j + 1].feedWeight;
+  //       feedQuantity[j].howManyTimesADay = feedQuantity[j + 1].howManyTimesADay;
+  //       feedQuantity[j].totalNumOfTimes = feedQuantity[j + 1].totalNumOfTimes;
+  //       feedQuantity[j].isActivated = feedQuantity[j + 1].isActivated;
+  //       feedQuantity[j].isFinished = feedQuantity[j + 1].isFinished;
+  //     }
+
+  //     updateWeightEEPROM();
+
+  //     feedWeightCtr--;  // Decrement the number of weight list
+  //     EEPROM.update(100, feedWeightCtr);
+  //     break;
+  //   }
+  // }
+
+  weightDeleteFlag = true;
+  delMenuFlag = true;
 }
 
 void dispenseFeed(String schedType) {
@@ -1708,6 +1846,27 @@ void dispenseFeed(String schedType) {
     feedQuantity[feedDispenseCtr].totalNumOfTimes--;
 
     updateWeightEEPROM();
+  }
+  else{
+    for(int i = tempFeedDispenseCtr; i < tempSchedCtr; i++){
+      //updateFeedSchedEEPROM();
+      if(i == 9){
+        tempSched[i].month = 0;
+        tempSched[i].day = 0;
+        tempSched[i].hour = 0;
+        tempSched[i].minute = 0;
+        tempSched[i].isPM = 0;
+        tempSched[i].feedWeight = 0;
+        tempSched[i].isActivated = 0;
+        tempSched[i].isFinished = 0;
+      }
+      else {
+        tempSched[i] = tempSched[i + 1];
+      }
+    }
+
+    tempSchedCtr--;   // Decrement the number of schedule
+    //EEPROM.update(12, tempSchedCtr);
   }
 }
 
