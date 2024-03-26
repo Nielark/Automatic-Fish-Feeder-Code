@@ -5,6 +5,7 @@
 #include <Wire.h> 
 #include <EEPROM.h>
 #include "HX711.h"
+#include "ultrasonic.h"
 
 // Load cell variables
 const int pinDT = 2;
@@ -103,9 +104,9 @@ struct custom {
   bool isFinished;
 };
 
-quantity feedQuantity[8];
-time feedTime[3];
+time feedTime[10];
 custom tempSched[10];
+quantity feedQuantity[10];
 int feedSchedCtr = 0, feedSchedPos = -1, feedWeightCtr = 0, feedDispenseCtr = 0;
 int tempSchedCtr = 0, tempSchedPos = -1, tempFeedDispenseCtr = 0;
 int curHour, curYear;
@@ -214,7 +215,7 @@ void loop(){
     digitalWrite(relayPin, LOW);
     noTone(buzzerPin);
     // Checks if the current time is equal to set time schedule to start feeding
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < feedSchedCtr; i++) {
       if (curHour == feedTime[i].hour && 
           now.minute() == feedTime[i].minute &&
           now.second() == 0 &&
@@ -227,7 +228,7 @@ void loop(){
     }
 
     // Checks if the current time is equal to set time schedule to start feeding (For custom of temporary schedule)
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < tempSchedCtr; i++) {
       if (
           now.month() == tempSched[i].month &&
           now.day() == tempSched[i].day &&
@@ -299,7 +300,7 @@ void loop(){
         deleteFlag = true;
         delMenuFlag = true;
         viewSched();
-        deleteFeedSched();    // Function call for deleting schedules
+        //deleteFeedSched();    // Function call for deleting schedules
         delMenuFlag = false;
 
         if(feedSchedCtr == 0 || schedReturnFlag) {
@@ -559,10 +560,14 @@ void setTime() {
   rtc.adjust(DateTime(year, month, day, hour, minute));
 }
 
+int LCD_ROWS = 4; // Define the number of rows in your LCD
+
+int scrollPosition = 0; // Initialize the scroll position
+
 void viewSched(){
   top:
   bool editSchedFlag = false;
-  int editInput;
+  int editInput, delInput, doubleDigit = 0, scrollCtr = 0;
 
   lcd.clear();
 
@@ -573,14 +578,24 @@ void viewSched(){
     delay(2000);
     return;
   }
+  else if(feedSchedCtr == 0 && deleteFlag == true){
+    lcd.setCursor(0, 1);
+    lcd.print("Schedule is Empty");
+    lcd.setCursor(0, 2);
+    lcd.print("No Data to Delete");
+    deleteFlag = false;
+    delay(2000);
+    return;
+  }
+  
 
   //sortFeedSched();  // Function call to sort the time schedule before displaying into LCD
 
   // Display the feeding shedules
   while(true){
-    for(int i = 0; i < feedSchedCtr; i++){
+    for (int i = scrollPosition; i < min(feedSchedCtr, scrollPosition + LCD_ROWS); i++) {
       if(feedTime[i].isActivated) {
-        lcd.setCursor(0, i);
+        lcd.setCursor(0, i - scrollPosition);
         // Adds leading zero for time less than 10 and convert it into string
         String fHour = (feedTime[i].hour < 10 ? "0" : "") + String(feedTime[i].hour);
         String fMinute = (feedTime[i].minute < 10 ? "0" : "") + String(feedTime[i].minute);
@@ -590,60 +605,108 @@ void viewSched(){
     }
     
     // break the loop and ask for delete input
-    if(deleteFlag == true) {
-      break;
-    }
-
-    // Exit and back to menu
+    // if(deleteFlag == true) {
+    //   break;
+    // }
+    
     char exitKey = customKeypad.getKey();
-    if(exitKey == 'B' && deleteFlag == false) {
-      break;
+
+    // Press 'A' to scroll the list upward
+    if (exitKey == 'A') { // Scroll up
+      lcd.clear();
+      if (scrollPosition > 0) {
+        scrollPosition--;
+      }
+    } 
+    // Press 'D' to scroll the list downward
+    else if (exitKey == 'D') { // Scroll down
+      lcd.clear();
+      if (scrollPosition < feedSchedCtr - LCD_ROWS) {
+        scrollPosition++;
+      }
     }
-    else if(isDigit(exitKey) && (exitKey - '0') <= feedSchedCtr && (exitKey - '0') > 0  && deleteFlag == false) {
+    // Exit and back to menu
+    else if(exitKey == 'B' && deleteFlag == false) {
+      // Return back (when only viewing the schedule)
+      return;
+    }
+    else if(exitKey == 'B' && deleteFlag == true) {
+      // Return back (when deleting was included)
+      schedReturnFlag = true;
+      deleteFlag = false;
+      return;
+    }
+    else if(exitKey == 'C' && feedSchedCtr >= 10 && doubleDigit < feedSchedCtr ){
+      doubleDigit += 10;
+      Serial.print(doubleDigit);
+    }
+    else if(isDigit(exitKey) && (exitKey - '0') <= feedSchedCtr && deleteFlag == false) {
+      // Select the number to edit the sched
       editSchedFlag = true;
       editInput = exitKey - '0'; // Convert char to int
-      break;
+      editInput += doubleDigit;
+
+      if(editInput > 0 && editInput <= feedSchedCtr) {
+        editFeedSched(editInput);
+      }
+
+      //editSchedFlag = false;
+      goto top;
+      // editInput = editInput - 1; 
+      //break;
     }
-    else if(deleteFlag == true){
-      break;
+    else if(isDigit(exitKey) && (exitKey - '0') <= feedSchedCtr && deleteFlag == true) {
+      // Select the number to delete the sched
+      delInput = exitKey - '0'; // Convert char to int
+      delInput += doubleDigit;
+
+      if(delInput > 0 && delInput <= feedSchedCtr) {
+        deleteFeedSched(delInput);
+      }
+
+      //editInput = editInput - 1; 
+      //break;
+      goto top;
     }
+    // else if(deleteFlag == true){
+    //   break;
+    // }
   }
 
-  if(editSchedFlag) {
-    editFeedSched(editInput);
-    editSchedFlag = false;
-    goto top;
-  }
+  // if(editSchedFlag) {
+    
+  // }
 }
 
 void editFeedSched(int editInput) {
   int morningOrAfternoon;
+  editInput = editInput - 1;
 
-  String fHour = (feedTime[editInput - 1].hour < 10 ? "0" : "") + String(feedTime[editInput - 1].hour);
-  String fMinute = (feedTime[editInput - 1].minute < 10 ? "0" : "") + String(feedTime[editInput - 1].minute);
-  String AMorPM = (feedTime[editInput - 1].isPM ? "PM" : "AM");
+  String fHour = (feedTime[editInput].hour < 10 ? "0" : "") + String(feedTime[editInput].hour);
+  String fMinute = (feedTime[editInput].minute < 10 ? "0" : "") + String(feedTime[editInput].minute);
+  String AMorPM = (feedTime[editInput].isPM ? "PM" : "AM");
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Scheduled Time:");
   lcd.setCursor(0, 1);
-  lcd.print(String(editInput) + ") " + fHour + ":" + fMinute + " " + AMorPM);
+  lcd.print(String(editInput + 1) + ") " + fHour + ":" + fMinute + " " + AMorPM);
   
   lcd.setCursor(0, 2);
   lcd.print("Enter Hour:");
-  feedTime[editInput - 1].hour = getTimeInput(12, 2, 2, 1, 12);
+  feedTime[editInput].hour = getTimeInput(12, 2, 2, 1, 12);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Scheduled Time:");
   lcd.setCursor(0, 1);
-  fHour = (feedTime[editInput - 1].hour < 10 ? "0" : "") + String(feedTime[editInput - 1].hour);
-  lcd.print(String(editInput) + ") " + fHour + ":" + fMinute + " " + AMorPM);
+  fHour = (feedTime[editInput].hour < 10 ? "0" : "") + String(feedTime[editInput].hour);
+  lcd.print(String(editInput + 1) + ") " + fHour + ":" + fMinute + " " + AMorPM);
 
   lcd.setCursor(0, 2);
   lcd.print("Enter Minute:");
-  feedTime[editInput - 1].minute = getTimeInput(14, 2, 2, 0, 59);
-  feedTime[editInput - 1].isActivated = true;
+  feedTime[editInput].minute = getTimeInput(14, 2, 2, 0, 59);
+  feedTime[editInput].isActivated = true;
 
   // Selection for AM and PM
   lcd.clear();
@@ -656,10 +719,10 @@ void editFeedSched(int editInput) {
   morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
 
   if(morningOrAfternoon == 1) {
-    feedTime[editInput - 1].isPM = false;
+    feedTime[editInput].isPM = false;
   }
   else {
-    feedTime[editInput - 1].isPM = true;
+    feedTime[editInput].isPM = true;
   }
 
   // int tmpCtnHour = feedTime[feedSchedPos].hour;
@@ -673,8 +736,8 @@ void editFeedSched(int editInput) {
 void addFeedSched() {
   int morningOrAfternoon;
 
-  if(feedSchedCtr < 3){
-    for(int i = 0; i < 3; i++) {
+  if(feedSchedCtr < 10){
+    for(int i = 0; i < 10; i++) {
       feedSchedPos++;
 
       if(feedTime[i].isActivated == false){
@@ -718,7 +781,9 @@ void addFeedSched() {
         // EEPROM.update(1, tmpCtnMin);
 
         feedSchedCtr++;
-        EEPROM.update(12, feedSchedCtr);
+        EEPROM.update(0, feedSchedCtr);
+        Serial.println(feedSchedCtr);
+        addSuccessfulMsg();
         break;
       }
     }
@@ -726,10 +791,10 @@ void addFeedSched() {
     sortFeedSched();
     
     // All three schedules have been set, display a message
-    if (feedSchedCtr >= 3) {
+    if (feedSchedCtr >= 10) {
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print("All 3 schedules set");
+      lcd.print("All 10 schedules set");
       delay(3000);
     }
   }
@@ -737,63 +802,68 @@ void addFeedSched() {
   else {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("All 3 schedules set");
+    lcd.print("All 10 schedules set");
     delay(3000);
   }
 
   feedSchedPos = -1;
 }
 
-void deleteFeedSched() {
+void deleteFeedSched(int delInput) {
   // Prompt if the schedule is empty and no data to delete
-  if(feedSchedCtr == 0){
-    lcd.setCursor(0, 1);
-    lcd.print("Schedule is Empty");
-    lcd.setCursor(0, 2);
-    lcd.print("No Data to Delete");
-    deleteFlag = false;
-    delay(2000);
-    return;
-  }
+  // if(feedSchedCtr == 0){
+  //   lcd.setCursor(0, 1);
+  //   lcd.print("Schedule is Empty");
+  //   lcd.setCursor(0, 2);
+  //   lcd.print("No Data to Delete");
+  //   deleteFlag = false;
+  //   delay(2000);
+  //   return;
+  // }
 
-  lcd.setCursor(0, 3);
-  lcd.print("Enter the number:");
-  int delInput = getTimeInput(18, 3, 1, 0, 3);
+  // lcd.setCursor(0, 3);
+  // lcd.print("Enter the number:");
+  // int delInput = getTimeInput(18, 3, 1, 0, 3);
 
   if(delInput == 0){
     schedReturnFlag = true;
-    deleteFlag = false;
+    // deleteFlag = false;
     return;
   }
 
-  for(int i = 0; i < feedSchedCtr; i++){
-    if(feedTime[i].hour == feedTime[delInput - 1].hour && 
-      feedTime[i].minute == feedTime[delInput - 1].minute)
-    {
-      // Traverse the position of array elements to delete
-      for(int j = i; j < feedSchedCtr; j++){
-        feedTime[j].hour = feedTime[j + 1].hour;
-        feedTime[j].minute = feedTime[j + 1].minute;
-        feedTime[j].isPM = feedTime[j + 1].isPM;
-        feedTime[j].isActivated = feedTime[j + 1].isActivated;
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Delete sched " + String(delInput));
+  lcd.setCursor(0, 1);
+  lcd.print("[1]-YES");
+  lcd.setCursor(0, 2);
+  lcd.print("[2]-CANCEL");
+  lcd.setCursor(0, 3);
+  lcd.print("Enter your choice:");
+  int choice = getTimeInput(19, 3, 1, 1, 2);
 
-        // Initialize the last elements into 0 and not activated
-        if(j == 2) {
-          feedTime[j].hour = 0;
-          feedTime[j].minute = 0;
-          feedTime[j].isActivated = false;
-        }
+  if(choice == 1){
+    delInput = delInput - 1; // Subtract one on the number to delete to locate it using array index
+
+    for(int i = delInput; i < feedSchedCtr; i++){
+      if(i == 9){
+        feedTime[i].hour = 0;
+        feedTime[i].minute = 0;
+        feedTime[i].isPM = 0;
+        feedTime[i].isActivated = 0;
+      }
+      else {
+        feedTime[i] = feedTime[i + 1];
       }
 
       updateFeedSchedEEPROM();
-
-      feedSchedCtr--;   // Decrement the number of schedule
-      EEPROM.update(12, feedSchedCtr);
-      break;
     }
+
+    feedSchedCtr--;   // Decrement the number of schedule
+    EEPROM.update(0, feedSchedCtr);
+    //deleteFlag = false;
+    deleteSuccessfulMsg();
   }
-  
-  deleteFlag = false;
 }
 
 void viewTemporarySched() {
@@ -887,13 +957,20 @@ void viewTemporarySched() {
     //   lcd.clear();
     //   goto top;
     // }
-    else if(isDigit(exitKey) && (exitKey - '0') <= tempSchedCtr && (exitKey - '0') > 0 && deleteFlag == false) {
+    else if(isDigit(exitKey) && (exitKey - '0') <= tempSchedCtr && deleteFlag == false) {
       // Select the number to edit the sched
       editSchedFlag = true;
       editInput = exitKey - '0'; // Convert char to int
       editInput += doubleDigit;
+
+      if(editInput > 0 && editInput <= tempSchedCtr) {
+        editTemporarySched(editInput);
+      }
+
+      //editSchedFlag = false;
+      goto top;
       // editInput = editInput - 1; 
-      break;
+      //break;
     }
     else if(isDigit(exitKey) && (exitKey - '0') <= tempSchedCtr && deleteFlag == true) {
       // Select the number to delete the sched
@@ -913,20 +990,21 @@ void viewTemporarySched() {
     // }
   }
 
-  if(editSchedFlag) {
-    editInput = editInput - 1;
+  // if(editSchedFlag) {
+  //   editInput = editInput - 1;
 
-    if(editInput <= tempSchedCtr) {
-      editTemporarySched(editInput);
-    }
+  //   if(editInput <= tempSchedCtr) {
+  //     editTemporarySched(editInput);
+  //   }
 
-    editSchedFlag = false;
-    goto top;
-  }
+  //   editSchedFlag = false;
+  //   goto top;
+  // }
 }
 
 void editTemporarySched(int editInput) {
   int morningOrAfternoon;
+  editInput = editInput - 1;
 
   String date = months[tempSched[editInput].month - 1] + "/" + String(tempSched[editInput].day) + "/" + String(curYear);
   String fHour = (tempSched[editInput].hour < 10 ? "0" : "") + String(tempSched[editInput].hour);
@@ -1024,7 +1102,7 @@ void editTemporarySched(int editInput) {
   // EEPROM.update(0, tmpCtnHour);
   // EEPROM.update(1, tmpCtnMin);
 
-  //sortFeedSched();
+  updateTemporarySchedEEPROM();
 }
 
 void addTemporarySched() {
@@ -1097,12 +1175,13 @@ void addTemporarySched() {
         tempSched[tempSchedPos].isFinished = false;
 
         tempSchedCtr++;
-        //EEPROM.update(12, tempSchedCtr);
+        EEPROM.update(1, tempSchedCtr);
+        addSuccessfulMsg();
         break;
       }
     }
 
-    //sortFeedSched();
+    updateTemporarySchedEEPROM();
     
     // All ten schedules have been set, display a message
     if (tempSchedCtr >= 10) {
@@ -1150,7 +1229,6 @@ void deleteTemporarySched(int delInput) {
     delInput = delInput - 1; // Subtract one on the number to delete to locate it using array index
 
     for(int i = delInput; i < tempSchedCtr; i++){
-      //updateFeedSchedEEPROM();
       if(i == 9){
         tempSched[i].month = 0;
         tempSched[i].day = 0;
@@ -1164,11 +1242,14 @@ void deleteTemporarySched(int delInput) {
       else {
         tempSched[i] = tempSched[i + 1];
       }
+
+      updateTemporarySchedEEPROM();
     }
 
     tempSchedCtr--;   // Decrement the number of schedule
-    //EEPROM.update(12, tempSchedCtr);
+    EEPROM.update(1, tempSchedCtr);
     //deleteFlag = false;
+    deleteSuccessfulMsg();
   }
 }
 
@@ -1256,14 +1337,14 @@ int getTimeInput(int cursorPosCols, int cursorPosRow, int charLen, int minVal, i
   }
 }
 
-void sortFeedSched(){
+void sortFeedSched() {
   int pos, pos2 = 0;
   int len = 3;
   int hourMinVal, minuteMinVal;
   bool isPM;
   bool isActivated;
 
-  // Sort the schedule list base on time and in terms of AM and PM
+  // Sort the schedule list based on time and in terms of AM and PM
   // Sorts the schedule list when there are more than one schedule
   if(feedSchedCtr > 1){
     // Start of AM
@@ -1274,31 +1355,33 @@ void sortFeedSched(){
       for(int j = i; j < feedSchedCtr; j++){
         // Check if the schedule time is AM
         if(!feedTime[j].isPM){
-          if(feedTime[j].hour < hourMinVal || feedTime[j].minute < minuteMinVal){
-            // Temporary save the current minimum time value in a variables
+          if(feedTime[j].hour < hourMinVal || (feedTime[j].hour == hourMinVal && feedTime[j].minute < minuteMinVal)){
+            // Temporary save the current minimum time value in variables
             hourMinVal = feedTime[j].hour;
             minuteMinVal = feedTime[j].minute;
             isPM = feedTime[j].isPM;
             isActivated = feedTime[j].isActivated;
             pos = j;
           }
-
-          // Start to sort the time by changing their position in the array
-          feedTime[pos].hour = feedTime[i].hour;    // Substitute the current hour into the minimum time
-          feedTime[i].hour = hourMinVal;            // Substitute the final minimum hour to the current hour from the temporary variable
-
-          feedTime[pos].minute = feedTime[i].minute;
-          feedTime[i].minute = minuteMinVal;
-
-          feedTime[pos].isPM = feedTime[i].isPM;
-          feedTime[i].isPM = isPM;
-
-          feedTime[pos].isActivated = feedTime[i].isActivated;
-          feedTime[i].isActivated = isActivated;
-
-          pos2 = i + 1;
         }
-      } // End of loop
+      }
+      
+      // Swap the schedule times
+      if(hourMinVal != 12 || minuteMinVal != 59){
+        feedTime[pos].hour = feedTime[i].hour;
+        feedTime[i].hour = hourMinVal;
+
+        feedTime[pos].minute = feedTime[i].minute;
+        feedTime[i].minute = minuteMinVal;
+
+        feedTime[pos].isPM = feedTime[i].isPM;
+        feedTime[i].isPM = isPM;
+
+        feedTime[pos].isActivated = feedTime[i].isActivated;
+        feedTime[i].isActivated = isActivated;
+
+        pos2 = i + 1;
+      }
     } // End of AM
 
     // Start of PM
@@ -1309,34 +1392,37 @@ void sortFeedSched(){
       for(int j = i; j < feedSchedCtr; j++){
         // Check if the schedule time is PM
         if(feedTime[j].isPM){
-          if(feedTime[j].hour < hourMinVal || feedTime[j].minute < minuteMinVal){
-            // Temporary save the current minimum time value in a variables
+          if(feedTime[j].hour < hourMinVal || (feedTime[j].hour == hourMinVal && feedTime[j].minute < minuteMinVal)){
+            // Temporary save the current minimum time value in variables
             hourMinVal = feedTime[j].hour;
             minuteMinVal = feedTime[j].minute;
             isPM = feedTime[j].isPM;
             isActivated = feedTime[j].isActivated;
             pos = j;
           }
-
-          // Start to sort the time by changing their position in the array
-          feedTime[pos].hour = feedTime[i].hour;    // Substitute the current hour into the minimum time
-          feedTime[i].hour = hourMinVal;            // Substitute the final minimum hour to the current hour from the temporary variable
-
-          feedTime[pos].minute = feedTime[i].minute;
-          feedTime[i].minute = minuteMinVal;
-
-          feedTime[pos].isPM = feedTime[i].isPM;
-          feedTime[i].isPM = isPM;
-
-          feedTime[pos].isActivated = feedTime[i].isActivated;
-          feedTime[i].isActivated = isActivated;
         }
-      } // End of loop
+      }
+        
+      // Swap the schedule times
+      if(hourMinVal != 12 || minuteMinVal != 59){
+        feedTime[pos].hour = feedTime[i].hour;
+        feedTime[i].hour = hourMinVal;
+
+        feedTime[pos].minute = feedTime[i].minute;
+        feedTime[i].minute = minuteMinVal;
+
+        feedTime[pos].isPM = feedTime[i].isPM;
+        feedTime[i].isPM = isPM;
+
+        feedTime[pos].isActivated = feedTime[i].isActivated;
+        feedTime[i].isActivated = isActivated;
+      }
     } // End of PM
   }
 
   updateFeedSchedEEPROM();
 }
+
 
 void feedSchedMenu() {
   lcd.clear();
@@ -1442,7 +1528,7 @@ void viewFeedWeight() {
       doubleDigit += 10;
       Serial.print(doubleDigit);
     }
-    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && (inputKey - '0') > 0 && weightDeleteFlag == false) {
+    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && weightDeleteFlag == false) {
       editWeightFlag = true;
       editInput = inputKey - '0'; // Convert char to int
       editInput -= 1;
@@ -1450,7 +1536,7 @@ void viewFeedWeight() {
       editWeightSched(editInput);
       goto top;
     }
-    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && (inputKey - '0') > 0 && weightDeleteFlag == true) {
+    else if(isDigit(inputKey) && (inputKey - '0') <= feedWeightCtr && weightDeleteFlag == true) {
       delInput = inputKey - '0'; // Convert char to int
       delInput += doubleDigit;
 
@@ -1554,7 +1640,7 @@ void editWeightSched(int editInput) {
 }
 
 void addFeedWeight() {
-  if(feedWeightCtr < 8) {
+  if(feedWeightCtr < 10) {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("[1]-Mash");
@@ -1600,15 +1686,16 @@ void addFeedWeight() {
     feedQuantity[feedWeightCtr].isFinished = false;
 
     feedWeightCtr++;
-    EEPROM.update(100, feedWeightCtr);
+    EEPROM.update(2, feedWeightCtr);
 
     updateWeightEEPROM();
+    addSuccessfulMsg();
   }
   
-  if(feedWeightCtr >= 8) {
+  if(feedWeightCtr >= 10) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("All 8 weights are set");
+    lcd.print("All 10 weights are set");
     delay(3000);
   }
 }
@@ -1640,7 +1727,6 @@ void deleteFeedWeight(int delInput) {
     delInput = delInput - 1; // Subtract one on the number to delete to locate it using array index
 
     for(int i = delInput; i < feedWeightCtr; i++){
-      //updateFeedSchedEEPROM();
       if(i == 9){
         feedQuantity[i].feedType = 0;
         feedQuantity[i].feedWeight = 0;
@@ -1659,7 +1745,8 @@ void deleteFeedWeight(int delInput) {
     }
 
     feedWeightCtr--;   // Decrement the number of schedule
-    EEPROM.update(100, feedWeightCtr);
+    EEPROM.update(2, feedWeightCtr);
+    deleteSuccessfulMsg();
   }
 
 
@@ -1841,7 +1928,7 @@ void dispenseFeed(String schedType) {
   }
 
   if(schedType == "permanent") {
-    EEPROM.update(101, feedDispenseCtr);
+    EEPROM.update(3, feedDispenseCtr);
 
     feedQuantity[feedDispenseCtr].totalNumOfTimes--;
 
@@ -1916,6 +2003,20 @@ void displayFeedLevel() {
   lcd.print("FEED LEVEL: ");
   lcd.print(cm);
   lcd.print(" cm");
+}
+
+void addSuccessfulMsg(){
+  lcd.clear();
+  lcd.setCursor(1, 1);
+  lcd.print("Added Successfully");
+  delay(800);
+}
+
+void deleteSuccessfulMsg(){
+  lcd.clear();
+  lcd.setCursor(0, 1);
+  lcd.print("Deleted Successfully");
+  delay(800);
 }
 
 double getDecimalInput(int cursorPosCols, int cursorPosRow, int charLen, float maxVal) {
@@ -2004,15 +2105,40 @@ void getDataFromEEPROM() {
   
   // Checks if the address for the fishSchedCtr is not equal to 255, then initialized the past values in the variable
   // If flase the feedSched counter will be equal to  0
-  if(EEPROM.read(12) != 255) {
-    feedSchedCtr = EEPROM.read(12);
+  if(EEPROM.read(0) != 255) {
+    feedSchedCtr = EEPROM.read(0);
   }
   else {
     feedSchedCtr = 0;
   }
 
+  if(EEPROM.read(1) != 255) {
+    tempSchedCtr = EEPROM.read(1);
+  }
+  else {
+    tempSchedCtr = 0;
+  }
+
+  // Checks if the address for the fishScfeedWeight is not equal to 255, then initialized the past values in the variable
+  // If flase the feedWeightCtr counter will be equal to  0
+  if(EEPROM.read(2) != 255) {
+    feedWeightCtr = EEPROM.read(2);
+  }
+  else {
+    feedWeightCtr = 0;
+  }
+
+  // Checks if the address for the feedDispenseCtr is not equal to 255, then initialized the past values in the variable
+  // If flase the feedDispenseCtr counter will be equal to  0
+  if(EEPROM.read(3) != 255) {
+    feedDispenseCtr = EEPROM.read(3);
+  }
+  else {
+    feedDispenseCtr = 0;
+  }
+
   // The following code is for retrieving the scheduled time save from the EEPROM address
-  int ctr1 = 0;   // For traversing the address of EEPROM
+  int ctr1 = 4;   // For traversing the address of EEPROM
 
   // Each address in the EEPROM will be read and store it in the struct
   for(int i = 0; i < feedSchedCtr; i++) {
@@ -2025,49 +2151,57 @@ void getDataFromEEPROM() {
     feedTime[i].isActivated = EEPROM.read(ctr1);
     ctr1++;
   }
+  Serial.println("ctr: " + String(ctr1));
 
-  // Checks if the address for the fishScfeedWeight is not equal to 255, then initialized the past values in the variable
-  // If flase the feedWeightCtr counter will be equal to  0
-  if(EEPROM.read(100) != 255) {
-    feedWeightCtr = EEPROM.read(100);
+  int ctr2 = 44;  // For traversing the address of EEPROM
+
+  // Each address in the EEPROM will be read and store it in the struct
+  for(int i = 0; i < tempSchedCtr; i++) {
+    tempSched[i].month = EEPROM.read(ctr2);
+    ctr2++;   // Increment after each retrieval to succesfully get back the updated information for all setted weight
+    tempSched[i].day = EEPROM.read(ctr2);
+    ctr2++;
+    tempSched[i].hour = EEPROM.read(ctr2);
+    ctr2++;
+    tempSched[i].minute = EEPROM.read(ctr2);
+    ctr2++;
+    tempSched[i].isPM = EEPROM.read(ctr2);
+    ctr2++;
+    EEPROM.get(ctr2, feedQuantity[i].feedWeight);
+    ctr2 += sizeof(double);
+    tempSched[i].isActivated = EEPROM.read(ctr2);
+    ctr2++;
+    tempSched[i].isFinished = EEPROM.read(ctr2);
+    ctr2++;
   }
-  else {
-    feedWeightCtr = 0;
-  }
+  Serial.println("ctr: " + String(ctr2));
 
   // The following code is for retrieving the set weight save from the EEPROM address
-  int ctr2 = 13;  // For traversing the address of EEPROM
+  int ctr3 = 154;  // For traversing the address of EEPROM
 
   // Each address in the EEPROM will be read and store it in the struct
   for(int i = 0; i < feedWeightCtr; i++) {
-    feedQuantity[i].feedType = EEPROM.read(ctr2);
-    ctr2++;   // Increment after each retrieval to succesfully get back the updated information for all setted weight
-    EEPROM.get(ctr2, feedQuantity[i].feedWeight);
-    ctr2 += sizeof(double);
-    feedQuantity[i].weekDuration = EEPROM.read(ctr2);
-    ctr2++;
-    feedQuantity[i].howManyTimesADay = EEPROM.read(ctr2);
-    ctr2++;
-    feedQuantity[i].totalNumOfTimes = EEPROM.read(ctr2);
-    ctr2++;
-    feedQuantity[i].isActivated = EEPROM.read(ctr2);
-    ctr2++;
-    feedQuantity[i].isFinished = EEPROM.read(ctr2);
-    ctr2++;
+    feedQuantity[i].feedType = EEPROM.read(ctr3);
+    ctr3++;   // Increment after each retrieval to succesfully get back the updated information for all setted weight
+    EEPROM.get(ctr3, feedQuantity[i].feedWeight);
+    ctr3 += sizeof(double);
+    feedQuantity[i].weekDuration = EEPROM.read(ctr3);
+    ctr3++;
+    feedQuantity[i].howManyTimesADay = EEPROM.read(ctr3);
+    ctr3++;
+    feedQuantity[i].totalNumOfTimes = EEPROM.read(ctr3);
+    ctr3++;
+    feedQuantity[i].isActivated = EEPROM.read(ctr3);
+    ctr3++;
+    feedQuantity[i].isFinished = EEPROM.read(ctr3);
+    ctr3++;
+    Serial.println("ctr: " + String(ctr3));
   }
-
-  // Checks if the address for the feedDispenseCtr is not equal to 255, then initialized the past values in the variable
-  // If flase the feedDispenseCtr counter will be equal to  0
-  if(EEPROM.read(101) != 255) {
-    feedDispenseCtr = EEPROM.read(101);
-  }
-  else {
-    feedDispenseCtr = 0;
-  }
+  Serial.println("ctr: " + String(ctr3));
 }
 
 void updateFeedSchedEEPROM() {
-  int addressCtr = 0;
+  int addressCtr = 4;
   
   for(int i = 0; i < feedSchedCtr; i++) {
     EEPROM.update(addressCtr, feedTime[i].hour);
@@ -2081,8 +2215,31 @@ void updateFeedSchedEEPROM() {
   }
 }
 
+void updateTemporarySchedEEPROM(){
+  int addressCtr = 44;
+
+  for(int i = 0; i < tempSchedCtr; i++) {
+    EEPROM.update(addressCtr, tempSched[i].month);
+    addressCtr++;
+    EEPROM.update(addressCtr, tempSched[i].day);
+    addressCtr++;
+    EEPROM.update(addressCtr, tempSched[i].hour);
+    addressCtr++;
+    EEPROM.update(addressCtr, tempSched[i].minute);
+    addressCtr++;
+    EEPROM.update(addressCtr, tempSched[i].isPM);
+    addressCtr++;
+    EEPROM.put(addressCtr, tempSched[i].feedWeight);
+    addressCtr += sizeof(double);
+    EEPROM.update(addressCtr, tempSched[i].isActivated);
+    addressCtr++;
+    EEPROM.update(addressCtr, tempSched[i].isFinished);
+    addressCtr++;
+  }
+}
+
 void updateWeightEEPROM() {
-  int addressCtr = 13;
+  int addressCtr = 154;
   
   for(int i = 0; i < feedWeightCtr; i++) {
     EEPROM.update(addressCtr, feedQuantity[i].feedType);
