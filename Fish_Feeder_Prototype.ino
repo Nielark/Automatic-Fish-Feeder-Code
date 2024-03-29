@@ -5,6 +5,7 @@
 #include <Wire.h> 
 #include <EEPROM.h>
 #include "HX711.h"
+#include "ultrasonic.h"
 
 // Load cell variables
 const int pinDT = 2;
@@ -179,50 +180,64 @@ void loop(){
     displayTime(now); // Function call to display current time
     displayFeedLevel(); // Function call to display feed level
 
-    for(int i = 0; i < tempSchedCtr; i++) {
-      Serial.println(tempSched[i].month);
-      Serial.println(tempSched[i].day);
-      Serial.println(tempSched[i].hour);
-      Serial.println(tempSched[i].minute);
-      Serial.println(tempSched[i].isPM);
-      Serial.println(tempSched[i].feedWeight);
-      Serial.println(tempSched[i].isActivated);
-      Serial.println(tempSched[i].isFinished);
+    // for(int i = 0; i < tempSchedCtr; i++) {
+    //   Serial.println(tempSched[i].month);
+    //   Serial.println(tempSched[i].day);
+    //   Serial.println(tempSched[i].hour);
+    //   Serial.println(tempSched[i].minute);
+    //   Serial.println(tempSched[i].isPM);
+    //   Serial.println(tempSched[i].feedWeight);
+    //   Serial.println(tempSched[i].isActivated);
+    //   Serial.println(tempSched[i].isFinished);
+    // }
+
+    //   Serial.println(tempSched[0].month);
+    //   Serial.println(tempSched[0].day);
+    //   Serial.println(tempSched[0].hour);
+    //   Serial.println(tempSched[0].minute);
+    //   Serial.println(tempSched[0].isPM);
+    //   Serial.println(tempSched[0].feedWeight);
+    //   Serial.println(tempSched[0].isActivated);
+    //   Serial.println(tempSched[0].isFinished);
+
+    //   Serial.println(tempSched[9].month);
+    //   Serial.println(tempSched[9].day);
+    //   Serial.println(tempSched[9].hour);
+    //   Serial.println(tempSched[9].minute);
+    //   Serial.println(tempSched[9].isPM);
+    //   Serial.println(tempSched[9].feedWeight);
+    //   Serial.println(tempSched[9].isActivated);
+    //   Serial.println(tempSched[9].isFinished);
+  }
+
+  if(feedWeightCtr > 0 && feedQuantity[feedWeightCtr - 1].totalNumOfTimes == 0){
+    for(int i = 0; i < feedWeightCtr; i++){
+      feedQuantity[i].totalNumOfTimes = (feedQuantity[i].weekDuration * 1) * feedQuantity[i].howManyTimesADay;
+      feedQuantity[i].isFinished = false;
+      feedDispenseCtr = 0;
+
+      EEPROM.update(3, feedDispenseCtr);
+      updateWeightEEPROM();
     }
-
-      Serial.println(tempSched[0].month);
-      Serial.println(tempSched[0].day);
-      Serial.println(tempSched[0].hour);
-      Serial.println(tempSched[0].minute);
-      Serial.println(tempSched[0].isPM);
-      Serial.println(tempSched[0].feedWeight);
-      Serial.println(tempSched[0].isActivated);
-      Serial.println(tempSched[0].isFinished);
-
-      Serial.println(tempSched[9].month);
-      Serial.println(tempSched[9].day);
-      Serial.println(tempSched[9].hour);
-      Serial.println(tempSched[9].minute);
-      Serial.println(tempSched[9].isPM);
-      Serial.println(tempSched[9].feedWeight);
-      Serial.println(tempSched[9].isActivated);
-      Serial.println(tempSched[9].isFinished);
   }
 
   // Condition to check the feed level of the container
   if(cm < 60) {
     digitalWrite(relayPin, LOW);
     noTone(buzzerPin);
-    // Checks if the current time is equal to set time schedule to start feeding
-    for (int i = 0; i < feedSchedCtr; i++) {
-      if (curHour == feedTime[i].hour && 
+
+    if(feedWeightCtr > 0){
+      // Checks if the current time is equal to set time schedule to start feeding
+      for (int i = 0; i < feedSchedCtr; i++) {
+        if (curHour == feedTime[i].hour && 
           now.minute() == feedTime[i].minute &&
           now.second() == 0 &&
           now.isPM() == feedTime[i].isPM &&
           feedTime[i].isActivated == true)
-      {
-        String schedType = "permanent";
-        dispenseFeed(schedType);   // Calls the function to dispense Feed
+        {
+          String schedType = "permanent";
+          dispenseFeed(schedType);   // Calls the function to dispense Feed
+        }
       }
     }
 
@@ -1513,7 +1528,9 @@ void viewFeedWeight() {
     lcd.setCursor(0, 0);
     lcd.print("FEED INFORMATION " + String(scrollCtr + 1));
     lcd.setCursor(0, 1);
-    lcd.print(feedType + "    " + String(feedQuantity[scrollCtr].feedWeight) + " Kg");
+    lcd.print(feedType);
+    lcd.setCursor(13, 1);
+    lcd.print(String(feedQuantity[scrollCtr].feedWeight) + " Kg");
     lcd.setCursor(0, 2);
     lcd.print(String(feedQuantity[scrollCtr].weekDuration) + " week/s, " + String(feedQuantity[scrollCtr].howManyTimesADay) + "x a day");
     lcd.setCursor(0, 3);
@@ -1700,7 +1717,7 @@ void addFeedWeight() {
     lcd.print("a day:");
     feedQuantity[feedWeightCtr].howManyTimesADay = getTimeInput(7, 1, 1, 1,9);
 
-    feedQuantity[feedWeightCtr].totalNumOfTimes = (feedQuantity[feedWeightCtr].weekDuration * 7) * feedQuantity[feedWeightCtr].howManyTimesADay;
+    feedQuantity[feedWeightCtr].totalNumOfTimes = (feedQuantity[feedWeightCtr].weekDuration * 1) * feedQuantity[feedWeightCtr].howManyTimesADay;
     feedQuantity[feedWeightCtr].isActivated = true;
     feedQuantity[feedWeightCtr].isFinished = false;
 
@@ -1974,6 +1991,8 @@ void dispenseFeed(String schedType) {
     tempSchedCtr--;   // Decrement the number of schedule
     //EEPROM.update(12, tempSchedCtr);
   }
+
+  lcd.clear();
 }
 
 void displayWeightLCD(double weight, int feedDivisor, String schedType) {
@@ -2015,19 +2034,6 @@ void displayWeightLCD(double weight, int feedDivisor, String schedType) {
   }
   
   lcd.print("Kg");
-}
-
-long readUltrasonicDistance(int triggerPin, int echoPin) {
-  pinMode(triggerPin, OUTPUT);  // Clear the trigger
-  digitalWrite(triggerPin, LOW);
-  delayMicroseconds(2);
-  // Sets the trigger pin to HIGH state for 10 microseconds
-  digitalWrite(triggerPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(triggerPin, LOW);
-  pinMode(echoPin, INPUT);
-  // Reads the echo pin, and returns the sound wave travel time in microseconds
-  return pulseIn(echoPin, HIGH);
 }
 
 void displayFeedLevel() {
