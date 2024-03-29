@@ -5,7 +5,6 @@
 #include <Wire.h> 
 #include <EEPROM.h>
 #include "HX711.h"
-#include "ultrasonic.h"
 
 // Load cell variables
 const int pinDT = 2;
@@ -678,8 +677,108 @@ void viewSched(){
   // }
 }
 
+void addFeedSched() {
+  int morningOrAfternoon;
+  bool isAlreadySet = false;
+
+  if(feedSchedCtr < 10){
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Set Schedule " + String(feedSchedCtr + 1));
+    
+    lcd.setCursor(0, 1);
+    lcd.print("Enter Hour:");
+    feedTime[feedSchedCtr].hour = getTimeInput(12, 1, 2, 1, 12);
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Set Schedule " + String(feedSchedCtr + 1));
+
+    lcd.setCursor(0, 1);
+    lcd.print("Enter Minute:");
+    feedTime[feedSchedCtr].minute = getTimeInput(14, 1, 2, 0, 59);
+    feedTime[feedSchedCtr].isActivated = true;
+
+    // Selection for AM and PM
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("[1] - AM");
+    lcd.setCursor(0, 1);
+    lcd.print("[2] - PM");
+    lcd.setCursor(0, 2);
+    lcd.print("Enter choice:");
+    morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
+
+    if(morningOrAfternoon == 1) {
+      feedTime[feedSchedCtr].isPM = false;
+    }
+    else {
+      feedTime[feedSchedCtr].isPM = true;
+    }
+
+    // int tmpCtnHour = feedTime[feedSchedPos].hour;
+    // int tmpCtnMin = feedTime[feedSchedPos].minute;
+    // EEPROM.update(0, tmpCtnHour);
+    // EEPROM.update(1, tmpCtnMin);
+
+    if(feedSchedCtr == 0){
+      feedSchedCtr++;
+      EEPROM.update(0, feedSchedCtr);
+      Serial.println(feedSchedCtr);
+
+      sortFeedSched();
+      addSuccessfulMsg();
+      return;
+    }
+
+    // Checks if the input time is already set and in the list
+    for(int i = 0; i < feedSchedCtr; i++){
+      if(feedTime[feedSchedCtr].hour == feedTime[i].hour &&
+        feedTime[feedSchedCtr].minute == feedTime[i].minute &&
+        feedTime[feedSchedCtr].isPM == feedTime[i].isPM
+      ){
+        isAlreadySet = true;
+        break;
+      }
+    }
+
+    if(!isAlreadySet) {
+      feedSchedCtr++;
+      EEPROM.update(0, feedSchedCtr);
+      Serial.println(feedSchedCtr);
+
+      sortFeedSched();
+      addSuccessfulMsg();
+    }
+    else{
+      feedTime[feedSchedCtr] = {};
+
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("The same time is already set");
+      delay(3000);
+    }
+    
+    // All three schedules have been set, display a message
+    // if(feedSchedCtr >= 10){
+    //   lcd.clear();
+    //   lcd.setCursor(0, 0);
+    //   lcd.print("All 10 schedules set");
+    //   delay(3000);
+    // }
+  }
+  // All three schedules have been set, display a message
+  if(feedSchedCtr >= 10){
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("All 10 schedules set");
+    delay(3000);
+  }
+}
+
 void editFeedSched(int editInput) {
   int morningOrAfternoon;
+  bool isAlreadySet = false;
   editInput = editInput - 1;
 
   String fHour = (feedTime[editInput].hour < 10 ? "0" : "") + String(feedTime[editInput].hour);
@@ -694,19 +793,22 @@ void editFeedSched(int editInput) {
   
   lcd.setCursor(0, 2);
   lcd.print("Enter Hour:");
-  feedTime[editInput].hour = getTimeInput(12, 2, 2, 1, 12);
+  // feedTime[editInput].hour = getTimeInput(12, 2, 2, 1, 12);
+  int checkHour = getTimeInput(12, 2, 2, 1, 12);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Scheduled Time:");
   lcd.setCursor(0, 1);
-  fHour = (feedTime[editInput].hour < 10 ? "0" : "") + String(feedTime[editInput].hour);
+  fHour = (checkHour < 10 ? "0" : "") + String(checkHour);
   lcd.print(String(editInput + 1) + ") " + fHour + ":" + fMinute + " " + AMorPM);
 
   lcd.setCursor(0, 2);
   lcd.print("Enter Minute:");
-  feedTime[editInput].minute = getTimeInput(14, 2, 2, 0, 59);
-  feedTime[editInput].isActivated = true;
+  //feedTime[editInput].minute = getTimeInput(14, 2, 2, 0, 59);
+  int checkMinute = getTimeInput(14, 2, 2, 0, 59);
+  //feedTime[editInput].isActivated = true;
+  bool checkIsActivated = true;
 
   // Selection for AM and PM
   lcd.clear();
@@ -718,11 +820,12 @@ void editFeedSched(int editInput) {
   lcd.print("Enter choice:");
   morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
 
+  bool checkIsPM;
   if(morningOrAfternoon == 1) {
-    feedTime[editInput].isPM = false;
+    checkIsPM = false;
   }
   else {
-    feedTime[editInput].isPM = true;
+    checkIsPM = true;
   }
 
   // int tmpCtnHour = feedTime[feedSchedPos].hour;
@@ -730,83 +833,39 @@ void editFeedSched(int editInput) {
   // EEPROM.update(0, tmpCtnHour);
   // EEPROM.update(1, tmpCtnMin);
 
-  sortFeedSched();
-}
-
-void addFeedSched() {
-  int morningOrAfternoon;
-
-  if(feedSchedCtr < 10){
-    for(int i = 0; i < 10; i++) {
-      feedSchedPos++;
-
-      if(feedTime[i].isActivated == false){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Set Schedule " + String(feedSchedPos + 1));
-        
-        lcd.setCursor(0, 1);
-        lcd.print("Enter Hour:");
-        feedTime[feedSchedPos].hour = getTimeInput(12, 1, 2, 1, 12);
-        
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Set Schedule " + String(feedSchedPos + 1));
-
-        lcd.setCursor(0, 1);
-        lcd.print("Enter Minute:");
-        feedTime[feedSchedPos].minute = getTimeInput(14, 1, 2, 0, 59);
-        feedTime[feedSchedPos].isActivated = true;
-
-        // Selection for AM and PM
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("[1] - AM");
-        lcd.setCursor(0, 1);
-        lcd.print("[2] - PM");
-        lcd.setCursor(0, 2);
-        lcd.print("Enter choice:");
-        morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
-
-        if(morningOrAfternoon == 1) {
-          feedTime[feedSchedPos].isPM = false;
-        }
-        else {
-          feedTime[feedSchedPos].isPM = true;
-        }
-
-        // int tmpCtnHour = feedTime[feedSchedPos].hour;
-        // int tmpCtnMin = feedTime[feedSchedPos].minute;
-        // EEPROM.update(0, tmpCtnHour);
-        // EEPROM.update(1, tmpCtnMin);
-
-        feedSchedCtr++;
-        EEPROM.update(0, feedSchedCtr);
-        Serial.println(feedSchedCtr);
-        addSuccessfulMsg();
-        break;
-      }
-    }
+  if(feedSchedCtr == 0){
+    Serial.println(feedSchedCtr);
+    feedTime[editInput] = {checkHour, checkMinute, checkIsPM, checkIsActivated};
 
     sortFeedSched();
-    
-    // All three schedules have been set, display a message
-    if (feedSchedCtr >= 10) {
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("All 10 schedules set");
-      delay(3000);
-    }
-  }
-  // All three schedules have been set, display a message
-  else {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("All 10 schedules set");
-    delay(3000);
+    editSuccessfulMsg();
+    return;
   }
 
-  feedSchedPos = -1;
+  // Checks if the input time is already set and in the list
+  for(int i = 0; i < feedSchedCtr; i++){
+    if(checkHour == feedTime[i].hour &&
+      checkMinute == feedTime[i].minute &&
+      checkIsPM == feedTime[i].isPM
+    ){
+      isAlreadySet = true;
+      break;
+    }
+  }
+
+  if(!isAlreadySet) {
+    Serial.println(feedSchedCtr);
+    feedTime[editInput] = {checkHour, checkMinute, checkIsPM, checkIsActivated};
+    
+    sortFeedSched();
+    addSuccessfulMsg();
+  }
+  else{
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("The same time is already set");
+    delay(3000);
+  }
 }
 
 void deleteFeedSched(int delInput) {
@@ -847,10 +906,11 @@ void deleteFeedSched(int delInput) {
 
     for(int i = delInput; i < feedSchedCtr; i++){
       if(i == 9){
-        feedTime[i].hour = 0;
-        feedTime[i].minute = 0;
-        feedTime[i].isPM = 0;
-        feedTime[i].isActivated = 0;
+        feedTime[i] = {0, 0, 0, 0};
+        // feedTime[i].hour = 0;
+        // feedTime[i].minute = 0;
+        // feedTime[i].isPM = 0;
+        // feedTime[i].isActivated = 0;
       }
       else {
         feedTime[i] = feedTime[i + 1];
@@ -1002,8 +1062,133 @@ void viewTemporarySched() {
   // }
 }
 
+void addTemporarySched() {
+  int morningOrAfternoon;
+  bool isAlreadySet = false;
+
+  if(tempSchedCtr < 10){
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Set Schedule " + String(tempSchedCtr + 1));
+    
+    lcd.setCursor(0, 1);
+    lcd.print("Enter Month:");
+    tempSched[tempSchedCtr].month = getTimeInput(13, 1, 2, 1, 12);
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Set Schedule " + String(tempSchedCtr + 1));
+    
+    lcd.setCursor(0, 1);
+    lcd.print("Enter Day:");
+    tempSched[tempSchedCtr].day = getTimeInput(11, 1, 2, 1, 31);
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Set Schedule " + String(tempSchedCtr + 1));
+    
+    lcd.setCursor(0, 1);
+    lcd.print("Enter Hour:");
+    tempSched[tempSchedCtr].hour = getTimeInput(12, 1, 2, 1, 12);
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Set Schedule " + String(tempSchedCtr + 1));
+
+    lcd.setCursor(0, 1);
+    lcd.print("Enter Minute:");
+    tempSched[tempSchedCtr].minute = getTimeInput(14, 1, 2, 0, 59);
+
+    // Selection for AM and PM
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("[1] - AM");
+    lcd.setCursor(0, 1);
+    lcd.print("[2] - PM");
+    lcd.setCursor(0, 2);
+    lcd.print("Enter choice:");
+    morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
+
+    if(morningOrAfternoon == 1) {
+      tempSched[tempSchedCtr].isPM = false;
+    }
+    else {
+      tempSched[tempSchedCtr].isPM = true;
+    }
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Set Schedule " + String(tempSchedCtr + 1));
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Enter Feed Weight:");
+    tempSched[tempSchedCtr].feedWeight = getDecimalInput(0, 1, 4, 5);
+    
+    tempSched[tempSchedCtr].isActivated = true;
+    tempSched[tempSchedCtr].isFinished = false;
+
+    if(tempSchedCtr == 0){
+      tempSchedCtr++;
+      EEPROM.update(1, tempSchedCtr);
+      Serial.println(tempSchedCtr);
+
+      updateTemporarySchedEEPROM();
+      addSuccessfulMsg();
+      return;
+    }
+
+    // Checks if the input time is already set and in the list
+    for(int i = 0; i < tempSchedCtr; i++){
+      if(tempSched[tempSchedCtr].month == tempSched[i].month &&
+        tempSched[tempSchedCtr].day == tempSched[i].day &&
+        tempSched[tempSchedCtr].hour == tempSched[i].hour &&
+        tempSched[tempSchedCtr].minute == tempSched[i].minute &&
+        tempSched[tempSchedCtr].isPM == tempSched[i].isPM
+      ){
+        isAlreadySet = true;
+        break;
+      }
+    }
+
+    if(!isAlreadySet) {
+      tempSchedCtr++;
+      EEPROM.update(1, tempSchedCtr);
+      Serial.println(tempSchedCtr);
+
+      updateTemporarySchedEEPROM();
+      addSuccessfulMsg();
+    }
+    else{
+      tempSched[tempSchedCtr] = {};
+
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("The same time is already set");
+      delay(3000);
+    }
+
+    // All ten schedules have been set, display a message
+    // if(tempSchedCtr >= 10){
+    //   lcd.clear();
+    //   lcd.setCursor(0, 0);
+    //   lcd.print("All 10 schedules set");
+    //   delay(3000);
+    // }
+  }
+
+  // All ten schedules have been set, display a message
+  if(tempSchedCtr >= 10){
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("All 10 schedules set");
+    delay(3000);
+  }
+}
+
 void editTemporarySched(int editInput) {
   int morningOrAfternoon;
+  bool isAlreadySet = false;
   editInput = editInput - 1;
 
   String date = months[tempSched[editInput].month - 1] + "/" + String(tempSched[editInput].day) + "/" + String(curYear);
@@ -1020,30 +1205,32 @@ void editTemporarySched(int editInput) {
 
   lcd.setCursor(0, 2);
   lcd.print("Enter Month:");
-  tempSched[editInput].month = getTimeInput(13, 2, 2, 1, 12);
+  //tempSched[editInput].month = getTimeInput(13, 2, 2, 1, 12);
+  int checkMonth = getTimeInput(13, 2, 2, 1, 12);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("TEMPORARY SCHED " + String(editInput + 1));
   lcd.setCursor(0, 1);
-  date = months[tempSched[editInput].month - 1] + "/" + String(tempSched[editInput].day) + "/" + String(curYear);
+  date = months[checkMonth - 1] + "/" + String(tempSched[editInput].day) + "/" + String(curYear);
   lcd.print("Date: " + date);
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("TEMPORARY SCHED " + String(editInput + 1));
-  lcd.setCursor(0, 1);
-  lcd.print("Date: " + date);
+  // lcd.clear();
+  // lcd.setCursor(0, 0);
+  // lcd.print("TEMPORARY SCHED " + String(editInput + 1));
+  // lcd.setCursor(0, 1);
+  // lcd.print("Date: " + date);
 
   lcd.setCursor(0, 2);
   lcd.print("Enter Day:");
-  tempSched[editInput].day = getTimeInput(11, 2, 2, 1, 31);
+  //tempSched[editInput].day = getTimeInput(11, 2, 2, 1, 31);
+  int checkDay = getTimeInput(11, 2, 2, 1, 31);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("TEMPORARY SCHED " + String(editInput + 1));
   lcd.setCursor(0, 1);
-  date = months[tempSched[editInput].month - 1] + "/" + String(tempSched[editInput].day) + "/" + String(curYear);
+  date = months[checkMonth - 1] + "/" + String(checkDay) + "/" + String(curYear);
   lcd.print("Date: " + date);
 
 
@@ -1055,18 +1242,20 @@ void editTemporarySched(int editInput) {
   
   lcd.setCursor(0, 2);
   lcd.print("Enter Hour:");
-  tempSched[editInput].hour = getTimeInput(12, 2, 2, 1, 12);
+  //tempSched[editInput].hour = getTimeInput(12, 2, 2, 1, 12);
+  int checkHour = getTimeInput(12, 2, 2, 1, 12);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("TEMPORARY SCHED " + String(editInput + 1));
   lcd.setCursor(0, 1);
-  fHour = (tempSched[editInput].hour < 10 ? "0" : "") + String(tempSched[editInput].hour);
-  lcd.print(String(editInput + 1) + ") " + fHour + ":" + fMinute + " " + AMorPM);
+  fHour = (checkHour < 10 ? "0" : "") + String(checkHour);
+  lcd.print(String(editInput + 1) + ") " + checkHour + ":" + fMinute + " " + AMorPM);
 
   lcd.setCursor(0, 2);
   lcd.print("Enter Minute:");
-  tempSched[editInput].minute = getTimeInput(14, 2, 2, 0, 59);
+  //tempSched[editInput].minute = getTimeInput(14, 2, 2, 0, 59);
+  int checkMinute = getTimeInput(14, 2, 2, 0, 59);
 
   // Selection for AM and PM
   lcd.clear();
@@ -1078,11 +1267,12 @@ void editTemporarySched(int editInput) {
   lcd.print("Enter choice:");
   morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
 
+  bool checkIsPM;
   if(morningOrAfternoon == 1) {
-    tempSched[editInput].isPM = false;
+    checkIsPM = false;
   }
   else {
-    tempSched[editInput].isPM = true;
+    checkIsPM = true;
   }
 
   lcd.clear();
@@ -1093,113 +1283,55 @@ void editTemporarySched(int editInput) {
 
   lcd.setCursor(0, 2);
   lcd.print("Enter Feed Weight:");
-  tempSched[editInput].feedWeight = getDecimalInput(0, 3, 4, 5);
+  //tempSched[editInput].feedWeight = getDecimalInput(0, 3, 4, 5);
+  double checkFeedWeight = getDecimalInput(0, 3, 4, 5);
 
-  tempSched[editInput].isActivated = true;
-  tempSched[editInput].isFinished = false;
+  // tempSched[editInput].isActivated = true;
+  // tempSched[editInput].isFinished = false;
+  bool checkIsActivated = true;
+  bool checkIsFinished = false;
+
+
   // int tmpCtnHour = feedTime[feedSchedPos].hour;
   // int tmpCtnMin = feedTime[feedSchedPos].minute;
   // EEPROM.update(0, tmpCtnHour);
   // EEPROM.update(1, tmpCtnMin);
 
-  updateTemporarySchedEEPROM();
-}
-
-void addTemporarySched() {
-  int morningOrAfternoon;
-
-  if(tempSchedCtr < 10){
-    for(int i = 0; i < 10; i++) {
-      tempSchedPos++;
-
-      if(tempSched[i].isActivated == false){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Set Schedule " + String(tempSchedPos + 1));
-        
-        lcd.setCursor(0, 1);
-        lcd.print("Enter Month:");
-        tempSched[tempSchedPos].month = getTimeInput(13, 1, 2, 1, 12);
-
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Set Schedule " + String(tempSchedPos + 1));
-        
-        lcd.setCursor(0, 1);
-        lcd.print("Enter Day:");
-        tempSched[tempSchedPos].day = getTimeInput(11, 1, 2, 1, 31);
-
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Set Schedule " + String(tempSchedPos + 1));
-        
-        lcd.setCursor(0, 1);
-        lcd.print("Enter Hour:");
-        tempSched[tempSchedPos].hour = getTimeInput(12, 1, 2, 1, 12);
-        
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Set Schedule " + String(tempSchedPos + 1));
-
-        lcd.setCursor(0, 1);
-        lcd.print("Enter Minute:");
-        tempSched[tempSchedPos].minute = getTimeInput(14, 1, 2, 0, 59);
-
-        // Selection for AM and PM
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("[1] - AM");
-        lcd.setCursor(0, 1);
-        lcd.print("[2] - PM");
-        lcd.setCursor(0, 2);
-        lcd.print("Enter choice:");
-        morningOrAfternoon = getTimeInput(14, 2, 1, 1, 2);
-
-        if(morningOrAfternoon == 1) {
-          tempSched[tempSchedPos].isPM = false;
-        }
-        else {
-          tempSched[tempSchedPos].isPM = true;
-        }
-
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Set Schedule " + String(tempSchedPos + 1));
-
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Enter Feed Weight:");
-        tempSched[tempSchedPos].feedWeight = getDecimalInput(0, 1, 4, 5);
-        
-        tempSched[tempSchedPos].isActivated = true;
-        tempSched[tempSchedPos].isFinished = false;
-
-        tempSchedCtr++;
-        EEPROM.update(1, tempSchedCtr);
-        addSuccessfulMsg();
-        break;
-      }
-    }
+  if(tempSchedCtr == 0){
+    Serial.println(tempSchedCtr);
+    tempSched[editInput] = {checkMonth, checkDay, checkHour, checkMinute, checkIsPM, checkFeedWeight, checkIsActivated, checkIsFinished};
 
     updateTemporarySchedEEPROM();
-    
-    // All ten schedules have been set, display a message
-    if (tempSchedCtr >= 10) {
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("All 10 schedules set");
-      delay(3000);
-    }
-  }
-  // All ten schedules have been set, display a message
-  else {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("All 10 schedules set");
-    delay(3000);
+    editSuccessfulMsg();
+    return;
   }
 
-  tempSchedPos = -1;
+  // Checks if the input time is already set and in the list
+  for(int i = 0; i < tempSchedCtr; i++){
+    if(checkMonth == tempSched[i].month &&
+      checkDay == tempSched[i].day &&
+      checkHour == tempSched[i].hour &&
+      checkMinute == tempSched[i].minute &&
+      checkIsPM == tempSched[i].isPM
+    ){
+      isAlreadySet = true;
+      break;
+    }
+  }
+
+  if(!isAlreadySet) {
+    Serial.println(tempSchedCtr);
+    tempSched[editInput] = {checkMonth, checkDay, checkHour, checkMinute, checkIsPM, checkFeedWeight, checkIsActivated, checkIsFinished};
+    
+    updateTemporarySchedEEPROM();
+    editSuccessfulMsg();
+  }
+  else{
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("The same time is already set");
+    delay(3000);
+  }
 }
 
 void deleteTemporarySched(int delInput) {
@@ -1230,14 +1362,15 @@ void deleteTemporarySched(int delInput) {
 
     for(int i = delInput; i < tempSchedCtr; i++){
       if(i == 9){
-        tempSched[i].month = 0;
-        tempSched[i].day = 0;
-        tempSched[i].hour = 0;
-        tempSched[i].minute = 0;
-        tempSched[i].isPM = 0;
-        tempSched[i].feedWeight = 0;
-        tempSched[i].isActivated = 0;
-        tempSched[i].isFinished = 0;
+        tempSched[i] = {0, 0, 0, 0, 0, 0, 0, 0};
+        // tempSched[i].month = 0;
+        // tempSched[i].day = 0;
+        // tempSched[i].hour = 0;
+        // tempSched[i].minute = 0;
+        // tempSched[i].isPM = 0;
+        // tempSched[i].feedWeight = 0;
+        // tempSched[i].isActivated = 0;
+        // tempSched[i].isFinished = 0;
       }
       else {
         tempSched[i] = tempSched[i + 1];
@@ -1250,90 +1383,6 @@ void deleteTemporarySched(int delInput) {
     EEPROM.update(1, tempSchedCtr);
     //deleteFlag = false;
     deleteSuccessfulMsg();
-  }
-}
-
-int getTimeInput(int cursorPosCols, int cursorPosRow, int charLen, int minVal, int maxVal) {
-  int cursorPos = cursorPosCols - 1;
-  int cursorPosCtr = 0;
-  String container = "";
-  top:
-  lcd.setCursor(cursorPosCols, cursorPosRow);
-
-  while(true) {
-    char keyInput = customKeypad.getKey();
-    
-    // Enter key
-    // Press '#' the loop and saves the input
-    if(keyInput == '#') {
-      break;
-    }
-    else if (keyInput == 'B') {
-      // Treat 'B' as a back or return
-      keyInput = '0';
-      container += keyInput;
-      break;
-    }
-    // Condition to accept digit inputs only
-    else if(isDigit(keyInput) && cursorPosCtr < charLen) {
-        container += keyInput;
-        lcd.print(keyInput);
-        cursorPosCtr++;
-    }
-    //Press '*' to delete the last character
-    else if(keyInput == '*' && cursorPosCtr > 0) {
-      lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
-      lcd.print(' ');
-      lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
-      container.remove(container.length() - 1);
-      cursorPosCtr--;
-    }
-  }
-  
-  // Save the value when it meets the requirements
-  if(container != "" && container.toInt() >= minVal && container.toInt() <= maxVal) {
-    return container.toInt();
-  }
-  // Input does not meet the requirements
-  else {
-    lcd.setCursor(0, 3);
-    lcd.print("   Invalid Input!  ");
-
-    // Automatically deletes the incorrect input
-    if(cursorPosCtr <= charLen) {
-      while(cursorPosCtr != 0) {
-        lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
-        lcd.print(' ');
-        lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
-        container.remove(container.length() - 1);
-        cursorPosCtr--;
-      }
-    }
-
-    // Deletes back the prompt "Invalid Input!" and ask for user input again.
-    if(menuFlag) {
-      delay(1000);
-      lcd.setCursor(0, 3);
-      lcd.print("                   ");
-      
-      lcd.setCursor(0, 3);
-      lcd.print("Enter your choice:");
-    }
-    else if(delMenuFlag) {
-      delay(1000);
-      lcd.setCursor(0, 3);
-      lcd.print("                   ");
-      
-      lcd.setCursor(0, 3);
-      lcd.print("Enter the number:");
-    }
-    else {
-      delay(1000);
-      lcd.setCursor(0, 3);
-      lcd.print("                   ");
-    }
-
-    goto top;
   }
 }
 
@@ -1421,37 +1470,6 @@ void sortFeedSched() {
   }
 
   updateFeedSchedEEPROM();
-}
-
-
-void feedSchedMenu() {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("[1]-View Schedule");
-  lcd.setCursor(0, 1);
-  lcd.print("[2]-Add Schedule");
-  lcd.setCursor(0, 2);
-  lcd.print("[3]-Delete Schedule");
-}
-
-void customFeedMenu() {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("[1]-View");
-  lcd.setCursor(0, 1);
-  lcd.print("[2]-Add");
-  lcd.setCursor(0, 2);
-  lcd.print("[3]-Delete");
-}
-
-void setFeedWeightMenu() {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("[1]-View");
-  lcd.setCursor(0, 1);
-  lcd.print("[2]-Add");
-  lcd.setCursor(0, 2);
-  lcd.print("[3]-Delete");
 }
 
 void viewFeedWeight() {
@@ -1637,6 +1655,7 @@ void editWeightSched(int editInput) {
   feedQuantity[editInput].isFinished = false;
 
   updateWeightEEPROM();
+  editSuccessfulMsg();
 }
 
 void addFeedWeight() {
@@ -1998,11 +2017,54 @@ void displayWeightLCD(double weight, int feedDivisor, String schedType) {
   lcd.print("Kg");
 }
 
+long readUltrasonicDistance(int triggerPin, int echoPin) {
+  pinMode(triggerPin, OUTPUT);  // Clear the trigger
+  digitalWrite(triggerPin, LOW);
+  delayMicroseconds(2);
+  // Sets the trigger pin to HIGH state for 10 microseconds
+  digitalWrite(triggerPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(triggerPin, LOW);
+  pinMode(echoPin, INPUT);
+  // Reads the echo pin, and returns the sound wave travel time in microseconds
+  return pulseIn(echoPin, HIGH);
+}
+
 void displayFeedLevel() {
   lcd.setCursor(0, 2);
   lcd.print("FEED LEVEL: ");
   lcd.print(cm);
   lcd.print(" cm");
+}
+
+void feedSchedMenu() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[1]-View Schedule");
+  lcd.setCursor(0, 1);
+  lcd.print("[2]-Add Schedule");
+  lcd.setCursor(0, 2);
+  lcd.print("[3]-Delete Schedule");
+}
+
+void customFeedMenu() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[1]-View");
+  lcd.setCursor(0, 1);
+  lcd.print("[2]-Add");
+  lcd.setCursor(0, 2);
+  lcd.print("[3]-Delete");
+}
+
+void setFeedWeightMenu() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[1]-View");
+  lcd.setCursor(0, 1);
+  lcd.print("[2]-Add");
+  lcd.setCursor(0, 2);
+  lcd.print("[3]-Delete");
 }
 
 void addSuccessfulMsg(){
@@ -2012,11 +2074,103 @@ void addSuccessfulMsg(){
   delay(800);
 }
 
+void editSuccessfulMsg(){
+  lcd.clear();
+  lcd.setCursor(1, 1);
+  lcd.print("edited Successfully");
+  delay(800);
+}
+
 void deleteSuccessfulMsg(){
   lcd.clear();
   lcd.setCursor(0, 1);
   lcd.print("Deleted Successfully");
   delay(800);
+}
+
+int getTimeInput(int cursorPosCols, int cursorPosRow, int charLen, int minVal, int maxVal) {
+  int cursorPos = cursorPosCols - 1;
+  int cursorPosCtr = 0;
+  String container = "";
+  top:
+  lcd.setCursor(cursorPosCols, cursorPosRow);
+
+  while(true) {
+    char keyInput = customKeypad.getKey();
+    
+    // Enter key
+    // Press '#' the loop and saves the input
+    if(keyInput == '#') {
+      break;
+    }
+    else if (keyInput == 'B') {
+      // Treat 'B' as a back or return
+      keyInput = '0';
+      container = "";
+      container += keyInput;
+      break;
+    }
+    // Condition to accept digit inputs only
+    else if(isDigit(keyInput) && cursorPosCtr < charLen) {
+        container += keyInput;
+        lcd.print(keyInput);
+        cursorPosCtr++;
+    }
+    //Press '*' to delete the last character
+    else if(keyInput == '*' && cursorPosCtr > 0) {
+      lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
+      lcd.print(' ');
+      lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
+      container.remove(container.length() - 1);
+      cursorPosCtr--;
+    }
+  }
+  
+  // Save the value when it meets the requirements
+  if(container != "" && container.toInt() >= minVal && container.toInt() <= maxVal) {
+    return container.toInt();
+  }
+  // Input does not meet the requirements
+  else {
+    lcd.setCursor(0, 3);
+    lcd.print("   Invalid Input!  ");
+
+    // Automatically deletes the incorrect input
+    if(cursorPosCtr <= charLen) {
+      while(cursorPosCtr != 0) {
+        lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
+        lcd.print(' ');
+        lcd.setCursor(cursorPos + cursorPosCtr, cursorPosRow);
+        container.remove(container.length() - 1);
+        cursorPosCtr--;
+      }
+    }
+
+    // Deletes back the prompt "Invalid Input!" and ask for user input again.
+    if(menuFlag) {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
+      
+      lcd.setCursor(0, 3);
+      lcd.print("Enter your choice:");
+    }
+    else if(delMenuFlag) {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
+      
+      lcd.setCursor(0, 3);
+      lcd.print("Enter the number:");
+    }
+    else {
+      delay(1000);
+      lcd.setCursor(0, 3);
+      lcd.print("                   ");
+    }
+
+    goto top;
+  }
 }
 
 double getDecimalInput(int cursorPosCols, int cursorPosRow, int charLen, float maxVal) {
