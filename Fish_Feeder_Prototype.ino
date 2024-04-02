@@ -7,6 +7,32 @@
 #include "HX711.h"
 #include "ultrasonic.h"
 
+/* Fill-in information from Blynk Device Info here */
+#define BLYNK_TEMPLATE_ID "TMPL6-P0buzgr"
+#define BLYNK_TEMPLATE_NAME "Fish Feeder"
+#define BLYNK_AUTH_TOKEN "L1yBXQglHRyFIaZfSNA3h3FV7dJjL_Y7"
+
+/* Comment this out to disable prints and save space */
+#define BLYNK_PRINT Serial
+
+#include <ESP8266_Lib.h>
+#include <BlynkSimpleShieldEsp8266.h>
+
+// Your WiFi credentials.
+// Set password to "" for open networks.
+char ssid[] = "GlobeAtHome_E719F";
+char pass[] = "qdx4xD5SBoi";
+
+// Hardware Serial on Mega, Leonardo, Micro...
+#define EspSerial Serial1
+
+// Your ESP8266 baud rate:
+#define ESP8266_BAUD 38400
+
+ESP8266 wifi(&EspSerial);
+
+BlynkTimer timer;
+
 // Load cell variables
 const int pinDT = 2;
 const int pinSCK = 3;
@@ -112,6 +138,10 @@ int tempSchedCtr = 0, tempSchedPos = -1, tempFeedDispenseCtr = 0;
 int curHour, curYear;
 bool deleteFlag = false, weightDeleteFlag = false, schedReturnFlag = false, weightReturnFlag = false, menuFlag = false, delMenuFlag = false;
 
+WidgetLCD LCD(V7);
+int blynkHr, blynkMin, blynkUpLCD, blynkDownLCD, blynkScrollCtr = 0, blynkEditInput;
+bool blynkIsPM;
+
 void setup(){
   Serial.begin(9600);
   rtc.begin();
@@ -162,9 +192,19 @@ void setup(){
   servoM1.detach();
   servoM2.detach();
   servoM3.detach();
+
+  EspSerial.begin(ESP8266_BAUD);
+  delay(10);
+  
+  Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
+
+  timer.setInterval(1000L, myTimer);
 }
 
 void loop(){
+  Blynk.run();
+  timer.run(); 
+
   char keyInput = customKeypad.getKey();  // For getting keypad inputs
   DateTime now = rtc.now();
 
@@ -431,6 +471,293 @@ void loop(){
         return;   // Exit
         break;
     }
+  }
+}
+
+BLYNK_WRITE(V1) {
+  // Called when the datastream V1 value changes
+
+  // Assign incoming value from pin V1 to a variable
+  // according to the datastream data type
+  blynkHr = param.asInt(); 
+  // double pinValue = param.asDouble();
+
+  Serial.print("V1: ");
+  Serial.println(blynkHr);
+}
+
+BLYNK_WRITE(V2) {
+  // Called when the datastream V1 value changes
+
+  // Assign incoming value from pin V1 to a variable
+  // according to the datastream data type
+  blynkMin = param.asInt(); 
+  // double pinValue = param.asDouble();
+
+  Serial.print("V2: ");
+  Serial.println(blynkMin);
+}
+
+BLYNK_WRITE(V3) {
+  switch (param.asInt()) {
+    case 0: { // Item 2
+      blynkIsPM = false;
+      break;
+    }
+    case 1: { // Item 2
+      blynkIsPM = true;
+      break;
+    }
+    case 2: { // Item 1
+      
+    break;
+    }
+  }
+  Serial.println(blynkIsPM);
+}
+
+BLYNK_WRITE(V4) // this command is listening when something is written to V1
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  
+  if (pinValue == 1){
+    if(feedSchedCtr < 10){
+      feedTime[feedSchedCtr].hour = blynkHr;
+      feedTime[feedSchedCtr].minute = blynkMin;
+      feedTime[feedSchedCtr].isPM = blynkIsPM;
+      feedTime[feedSchedCtr].isActivated = true;
+
+      feedSchedCtr++;
+      EEPROM.update(0, feedSchedCtr);
+
+      sortFeedSched();
+    }
+   // do something when button is pressed;
+  } 
+  else if (pinValue == 0) {
+   // do something when button is released;
+  }
+
+  blynkHr = 0;
+  blynkMin = 0;
+  blynkIsPM = 0;
+  Blynk.virtualWrite(V1, 0);
+  Blynk.virtualWrite(V2, 0);
+  Blynk.virtualWrite(V3, 2);
+  
+  Serial.print("V4 button value is: "); // printing value to serial monitor
+  Serial.println(pinValue);
+}
+
+BLYNK_WRITE(V5) // this command is listening when something is written to V1
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  
+  if (pinValue == 1){
+   blynkUpLCD = pinValue;
+  }
+  
+  Serial.print("V5 button value is: "); // printing value to serial monitor
+  Serial.println(blynkUpLCD);
+}
+
+BLYNK_WRITE(V6) // this command is listening when something is written to V1
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  
+  if (pinValue == 1){
+   blynkDownLCD = pinValue;
+  }
+  
+  Serial.print("V6 button value is: "); // printing value to serial monitor
+  Serial.println(blynkDownLCD);
+}
+
+BLYNK_WRITE(V10) {
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+
+  Blynk.setProperty(V4, "isDisabled", true);
+  switch (param.asInt()) {
+    case 0: { // Item 1
+      Blynk.setProperty(V4, "isDisabled", false);
+      Blynk.virtualWrite(V1, 0);
+      Blynk.virtualWrite(V2, 0);
+      Blynk.virtualWrite(V3, 2);
+      break;
+    }
+    case 1: { // Item 1
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 0;
+      break;
+    }
+    case 2: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 1;
+      break;
+    }
+    case 3: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 2;
+      break;
+    }  
+    case 4: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 3;
+      break;
+    }  
+    case 5: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 4;
+      break;
+    }  
+    case 6: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 5;
+      break;
+    }
+    case 7: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 6;
+      break;
+    }   
+    case 8: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 7;
+      break;
+    }   
+    case 9: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 8;
+      break;
+    }   
+    case 10: { // Item 2
+      //Blynk.setProperty(V4, "isDisabled", true);
+      blynkEditInput = 9;
+      break;
+    }    
+  }
+  
+  if(pinValue != 0){
+    Blynk.virtualWrite(V1, feedTime[blynkEditInput].hour);
+    Blynk.virtualWrite(V2, feedTime[blynkEditInput].minute);
+    Blynk.virtualWrite(V3, feedTime[blynkEditInput].isPM);
+
+    blynkHr = feedTime[blynkEditInput].hour;
+    blynkMin = feedTime[blynkEditInput].minute;
+    blynkIsPM = feedTime[blynkEditInput].isPM;
+  }
+}
+
+BLYNK_WRITE(V8) // this command is listening when something is written to V1
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  
+  if (pinValue == 1){
+    for(int i = blynkEditInput; i < feedSchedCtr; i++){
+      if(i == 9){
+        feedTime[i] = {0, 0, 0, 0};
+        // feedTime[i].hour = 0;
+        // feedTime[i].minute = 0;
+        // feedTime[i].isPM = 0;
+        // feedTime[i].isActivated = 0;
+      }
+      else {
+        feedTime[i] = feedTime[i + 1];
+      }
+
+      updateFeedSchedEEPROM();
+    }
+
+    feedSchedCtr--;   // Decrement the number of schedule
+    EEPROM.update(0, feedSchedCtr);
+  // do something when button is pressed;
+  } 
+  else if (pinValue == 0) {
+   // do something when button is released;
+  }
+
+  blynkHr = 0;
+  blynkMin = 0;
+  blynkIsPM = 0;
+  Blynk.virtualWrite(V1, 0);
+  Blynk.virtualWrite(V2, 0);
+  Blynk.virtualWrite(V3, 2);
+  Blynk.virtualWrite(V10, 0);
+  Blynk.setProperty(V4, "isDisabled", false);
+  
+  Serial.print("V8 button value is: "); // printing value to serial monitor
+  Serial.println(pinValue);
+}
+
+BLYNK_WRITE(V9) // this command is listening when something is written to V1
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  
+  if (pinValue == 1){
+    feedTime[blynkEditInput].hour = blynkHr;
+    feedTime[blynkEditInput].minute = blynkMin;
+    feedTime[blynkEditInput].isPM = blynkIsPM;
+    feedTime[blynkEditInput].isActivated = true;
+
+    sortFeedSched();
+  // do something when button is pressed;
+  } 
+  else if (pinValue == 0) {
+   // do something when button is released;
+  }
+
+  blynkHr = 0;
+  blynkMin = 0;
+  blynkIsPM = 0;
+  Blynk.virtualWrite(V1, 0);
+  Blynk.virtualWrite(V2, 0);
+  Blynk.virtualWrite(V3, 2);
+  Blynk.virtualWrite(V10, 0);
+  Blynk.setProperty(V4, "isDisabled", false);
+  
+  Serial.print("V9 button value is: "); // printing value to serial monitor
+  Serial.println(pinValue);
+}
+
+void myTimer() 
+{
+  // This function describes what will happen with each timer tick
+  // e.g. writing sensor value to datastream V5
+  Blynk.virtualWrite(V0, cm);
+
+  if(feedTime[blynkScrollCtr].isActivated) {
+    // Adds leading zero for time less than 10 and convert it into string
+    String fHour = (feedTime[blynkScrollCtr].hour < 10 ? "0" : "") + String(feedTime[blynkScrollCtr].hour);
+    String fMinute = (feedTime[blynkScrollCtr].minute < 10 ? "0" : "") + String(feedTime[blynkScrollCtr].minute);
+    String AMorPM = (feedTime[blynkScrollCtr].isPM ? "PM" : "AM");
+
+    LCD.print(0, 0, String(blynkScrollCtr + 1) + ") " + fHour + ":" + fMinute + " " + AMorPM);
+
+    if(feedSchedCtr > 1){
+      String fHour2 = (feedTime[blynkScrollCtr + 1].hour < 10 ? "0" : "") + String(feedTime[blynkScrollCtr + 1].hour);
+      String fMinute2 = (feedTime[blynkScrollCtr + 1].minute < 10 ? "0" : "") + String(feedTime[blynkScrollCtr + 1].minute);
+      String AMorPM2 = (feedTime[blynkScrollCtr + 1].isPM ? "PM" : "AM");
+
+      LCD.print(0, 1, String(blynkScrollCtr + 2) + ") " + fHour2 + ":" + fMinute2 + " " + AMorPM2);
+    }
+  }
+
+  if(blynkUpLCD == 1){ // Scroll up
+    //LCD.clear();
+    if (blynkScrollCtr > 0) {
+      blynkScrollCtr--;
+    }
+
+    blynkUpLCD = 0;
+  }
+  // Press 'D' to scroll the list downward
+  if(blynkDownLCD == 1){ // Scroll down
+    //LCD.clear();
+    if (blynkScrollCtr < (feedSchedCtr - 1)) {
+      blynkScrollCtr++;
+    }
+
+    blynkDownLCD = 0;
   }
 }
 
