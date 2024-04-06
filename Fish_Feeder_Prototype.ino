@@ -19,9 +19,11 @@
 #include <BlynkSimpleShieldEsp8266.h>
 
 // Your WiFi credentials.
-// Set password to "" for open networks.
+//Set password to "" for open networks.
 char ssid[] = "GlobeAtHome_E719F";
 char pass[] = "qdx4xD5SBoi";
+// char ssid[] = "ICT";
+// char pass[] = "ict.services";
 
 // Hardware Serial on Mega, Leonardo, Micro...
 #define EspSerial Serial1
@@ -199,6 +201,8 @@ void setup(){
   Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
 
   timer.setInterval(1000L, myTimer);
+  Blynk.setProperty(V8, "isDisabled", true); // Disable the edit button widget
+  Blynk.setProperty(V9, "isDisabled", true); // Disable the delete button widget
 }
 
 void loop(){
@@ -474,41 +478,40 @@ void loop(){
   }
 }
 
-BLYNK_WRITE(V1) {
-  // Called when the datastream V1 value changes
+/* =======================================================================================
+                                        BLYNK IOT CODE
+========================================================================================*/
 
+// Getting the input for hour using number widget
+BLYNK_WRITE(V1){
   // Assign incoming value from pin V1 to a variable
-  // according to the datastream data type
   blynkHr = param.asInt(); 
-  // double pinValue = param.asDouble();
 
   Serial.print("V1: ");
   Serial.println(blynkHr);
 }
 
-BLYNK_WRITE(V2) {
-  // Called when the datastream V1 value changes
-
-  // Assign incoming value from pin V1 to a variable
-  // according to the datastream data type
+// Getting the input for minute using number widget
+BLYNK_WRITE(V2){
+  // Assign incoming value from pin V2 to a variable
   blynkMin = param.asInt(); 
-  // double pinValue = param.asDouble();
 
   Serial.print("V2: ");
   Serial.println(blynkMin);
 }
 
-BLYNK_WRITE(V3) {
+// Getting the input for AM or PM using menu widget
+BLYNK_WRITE(V3){
   switch (param.asInt()) {
-    case 0: { // Item 2
+    case 0: {
       blynkIsPM = false;
       break;
     }
-    case 1: { // Item 2
+    case 1: {
       blynkIsPM = true;
       break;
     }
-    case 2: { // Item 1
+    case 2: {
       
     break;
     }
@@ -516,21 +519,32 @@ BLYNK_WRITE(V3) {
   Serial.println(blynkIsPM);
 }
 
-BLYNK_WRITE(V4) // this command is listening when something is written to V1
-{
-  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+// Set the input time schedule and save to EEPROM
+BLYNK_WRITE(V4){
+  int pinValue = param.asInt(); // assigning incoming value from pin V4 to a variable
   
+  // When the set button is press save the input to the structure of array when feedSched is not full and hour input is not 0
   if (pinValue == 1){
     if(feedSchedCtr < 10){
-      feedTime[feedSchedCtr].hour = blynkHr;
-      feedTime[feedSchedCtr].minute = blynkMin;
-      feedTime[feedSchedCtr].isPM = blynkIsPM;
-      feedTime[feedSchedCtr].isActivated = true;
+      if(blynkHr != 0){
+        feedTime[feedSchedCtr].hour = blynkHr;
+        feedTime[feedSchedCtr].minute = blynkMin;
+        feedTime[feedSchedCtr].isPM = blynkIsPM;
+        feedTime[feedSchedCtr].isActivated = true;
 
-      feedSchedCtr++;
-      EEPROM.update(0, feedSchedCtr);
+        feedSchedCtr++;                   // Increment the number of schedule time
+        EEPROM.update(0, feedSchedCtr);   // Update the number of schedule in the EEPROM
 
-      sortFeedSched();
+        sortFeedSched();                  // Sort the schedule in ascending order according to time preferences
+
+        blynkAddSuccessfulMsg();
+      }
+      else{
+        LCD.clear();
+        LCD.print(0, 0, "Please set hour");
+        delay(3000);
+        LCD.clear();
+      }
     }
    // do something when button is pressed;
   } 
@@ -538,9 +552,12 @@ BLYNK_WRITE(V4) // this command is listening when something is written to V1
    // do something when button is released;
   }
 
+  // Initialize the variables back into zero
   blynkHr = 0;
   blynkMin = 0;
   blynkIsPM = 0;
+  
+  // Display 0 as a default in the widgets
   Blynk.virtualWrite(V1, 0);
   Blynk.virtualWrite(V2, 0);
   Blynk.virtualWrite(V3, 2);
@@ -549,9 +566,9 @@ BLYNK_WRITE(V4) // this command is listening when something is written to V1
   Serial.println(pinValue);
 }
 
-BLYNK_WRITE(V5) // this command is listening when something is written to V1
-{
-  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+// For scrolling up the content of LCD widget
+BLYNK_WRITE(V5){
+  int pinValue = param.asInt(); // assigning incoming value from pin V5 to a variable
   
   if (pinValue == 1){
    blynkUpLCD = pinValue;
@@ -561,9 +578,9 @@ BLYNK_WRITE(V5) // this command is listening when something is written to V1
   Serial.println(blynkUpLCD);
 }
 
-BLYNK_WRITE(V6) // this command is listening when something is written to V1
-{
-  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+// For scrolling down the content of the LCD widget
+BLYNK_WRITE(V6){
+  int pinValue = param.asInt(); // assigning incoming value from pin V6 to a variable
   
   if (pinValue == 1){
    blynkDownLCD = pinValue;
@@ -573,87 +590,88 @@ BLYNK_WRITE(V6) // this command is listening when something is written to V1
   Serial.println(blynkDownLCD);
 }
 
-BLYNK_WRITE(V10) {
-  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+// Selecting the respective number of the schedule
+BLYNK_WRITE(V10){
+  int pinValue = param.asInt(); // assigning incoming value from pin V10 to a variable
 
-  Blynk.setProperty(V4, "isDisabled", true);
+  Blynk.setProperty(V4, "isDisabled", true);  // Disable the set button widget
+  Blynk.setProperty(V8, "isDisabled", false); // Enable the edit button widget
+  Blynk.setProperty(V9, "isDisabled", false); // Enable the delete button widget
+
   switch (param.asInt()) {
-    case 0: { // Item 1
-      Blynk.setProperty(V4, "isDisabled", false);
+    case 0: {
+      Blynk.setProperty(V4, "isDisabled", false); // Enable the set button widget
+      Blynk.setProperty(V8, "isDisabled", true); // Disable the edit button widget
+      Blynk.setProperty(V9, "isDisabled", true); // Disable the delete button widget
+
+      // Display 0 as a default in the widgets
       Blynk.virtualWrite(V1, 0);
       Blynk.virtualWrite(V2, 0);
       Blynk.virtualWrite(V3, 2);
       break;
     }
-    case 1: { // Item 1
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 1: {
       blynkEditInput = 0;
       break;
     }
-    case 2: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 2: {
       blynkEditInput = 1;
       break;
     }
-    case 3: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 3: {
       blynkEditInput = 2;
       break;
     }  
     case 4: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
       blynkEditInput = 3;
       break;
     }  
-    case 5: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 5: {
       blynkEditInput = 4;
       break;
     }  
-    case 6: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 6: {
       blynkEditInput = 5;
       break;
     }
-    case 7: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 7: {
       blynkEditInput = 6;
       break;
     }   
-    case 8: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 8: {
       blynkEditInput = 7;
       break;
     }   
-    case 9: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 9: {
       blynkEditInput = 8;
       break;
     }   
-    case 10: { // Item 2
-      //Blynk.setProperty(V4, "isDisabled", true);
+    case 10: {
       blynkEditInput = 9;
       break;
     }    
   }
   
   if(pinValue != 0){
+    // Display the selected schedule in the hour, minute, and AM or PM widget
     Blynk.virtualWrite(V1, feedTime[blynkEditInput].hour);
     Blynk.virtualWrite(V2, feedTime[blynkEditInput].minute);
     Blynk.virtualWrite(V3, feedTime[blynkEditInput].isPM);
 
+    // Store the value in the variables
     blynkHr = feedTime[blynkEditInput].hour;
     blynkMin = feedTime[blynkEditInput].minute;
     blynkIsPM = feedTime[blynkEditInput].isPM;
   }
 }
 
-BLYNK_WRITE(V8) // this command is listening when something is written to V1
-{
-  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+// Deleting the value of selected schedule
+BLYNK_WRITE(V8){
+  int pinValue = param.asInt(); // assigning incoming value from pin V8 to a variable
   
   if (pinValue == 1){
     for(int i = blynkEditInput; i < feedSchedCtr; i++){
+      // When the 10th schedule is selected, initialize all value into 0
       if(i == 9){
         feedTime[i] = {0, 0, 0, 0};
         // feedTime[i].hour = 0;
@@ -662,65 +680,86 @@ BLYNK_WRITE(V8) // this command is listening when something is written to V1
         // feedTime[i].isActivated = 0;
       }
       else {
-        feedTime[i] = feedTime[i + 1];
+        feedTime[i] = feedTime[i + 1];  // Traverse the value starting from the index of deleted schedule
       }
 
-      updateFeedSchedEEPROM();
+      updateFeedSchedEEPROM();          // Update the changes into the EEPROM
     }
 
-    feedSchedCtr--;   // Decrement the number of schedule
-    EEPROM.update(0, feedSchedCtr);
+    feedSchedCtr--;                     // Decrement the number of schedule
+    EEPROM.update(0, feedSchedCtr);     // Update the changes of the number of schedule in EEPROM
+
+    blynkDeleteSuccessfulMsg();
   // do something when button is pressed;
   } 
   else if (pinValue == 0) {
    // do something when button is released;
   }
 
+  /// Initialize the variables back into zero
   blynkHr = 0;
   blynkMin = 0;
   blynkIsPM = 0;
+
+  // Dispaly the value in the hour, minute, AM or PM in widget as 0 or default
   Blynk.virtualWrite(V1, 0);
   Blynk.virtualWrite(V2, 0);
   Blynk.virtualWrite(V3, 2);
   Blynk.virtualWrite(V10, 0);
-  Blynk.setProperty(V4, "isDisabled", false);
+  Blynk.setProperty(V4, "isDisabled", false);   // Enable the set schedule button
+  Blynk.setProperty(V8, "isDisabled", true); // Disable the edit button widget
+  Blynk.setProperty(V9, "isDisabled", true); // Disable the delete button widget
   
   Serial.print("V8 button value is: "); // printing value to serial monitor
   Serial.println(pinValue);
 }
 
-BLYNK_WRITE(V9) // this command is listening when something is written to V1
-{
-  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+// Editing the schedule
+BLYNK_WRITE(V9){
+  int pinValue = param.asInt(); // assigning incoming value from pin V9 to a variable
   
   if (pinValue == 1){
-    feedTime[blynkEditInput].hour = blynkHr;
-    feedTime[blynkEditInput].minute = blynkMin;
-    feedTime[blynkEditInput].isPM = blynkIsPM;
-    feedTime[blynkEditInput].isActivated = true;
+    if(blynkHr != 0){
+      feedTime[blynkEditInput].hour = blynkHr;
+      feedTime[blynkEditInput].minute = blynkMin;
+      feedTime[blynkEditInput].isPM = blynkIsPM;
+      feedTime[blynkEditInput].isActivated = true;
 
-    sortFeedSched();
+      sortFeedSched();    // Sort the schedue after editing
+      
+      blynkEditSuccessfulMsg();
+    }
+    else{
+      LCD.clear();
+      LCD.print(0, 0, "Please set hour");
+      delay(3000);
+      LCD.clear();
+    }
   // do something when button is pressed;
   } 
   else if (pinValue == 0) {
    // do something when button is released;
   }
 
+  // Initialize the variables back into zero
   blynkHr = 0;
   blynkMin = 0;
   blynkIsPM = 0;
+
+  // Display 0 as a default in the widgets
   Blynk.virtualWrite(V1, 0);
   Blynk.virtualWrite(V2, 0);
   Blynk.virtualWrite(V3, 2);
   Blynk.virtualWrite(V10, 0);
-  Blynk.setProperty(V4, "isDisabled", false);
+  Blynk.setProperty(V4, "isDisabled", false);   // Enable the set schedule button
+  Blynk.setProperty(V8, "isDisabled", true); // Disable the edit button widget
+  Blynk.setProperty(V9, "isDisabled", true); // Disable the delete button widget
   
   Serial.print("V9 button value is: "); // printing value to serial monitor
   Serial.println(pinValue);
 }
 
-void myTimer() 
-{
+void myTimer(){
   // This function describes what will happen with each timer tick
   // e.g. writing sensor value to datastream V5
   Blynk.virtualWrite(V0, cm);
@@ -743,7 +782,7 @@ void myTimer()
   }
 
   if(blynkUpLCD == 1){ // Scroll up
-    //LCD.clear();
+    LCD.clear();
     if (blynkScrollCtr > 0) {
       blynkScrollCtr--;
     }
@@ -752,7 +791,7 @@ void myTimer()
   }
   // Press 'D' to scroll the list downward
   if(blynkDownLCD == 1){ // Scroll down
-    //LCD.clear();
+    LCD.clear();
     if (blynkScrollCtr < (feedSchedCtr - 1)) {
       blynkScrollCtr++;
     }
@@ -760,6 +799,10 @@ void myTimer()
     blynkDownLCD = 0;
   }
 }
+
+/* =======================================================================================
+                          ARDUINO CODE                   
+========================================================================================*/
 
 void displayTime(DateTime currentTime) {
   //displayCurTime = millis();
@@ -2398,6 +2441,27 @@ void setFeedWeightMenu() {
   lcd.print("[2]-Add");
   lcd.setCursor(0, 2);
   lcd.print("[3]-Delete");
+}
+
+void blynkAddSuccessfulMsg(){
+  LCD.clear();
+  LCD.print(0, 0, "Added Successfully");
+  delay(800);
+  LCD.clear();
+}
+
+void blynkEditSuccessfulMsg(){
+  LCD.clear();
+  LCD.print(0, 0, "edited Successfully");
+  delay(800);
+  LCD.clear();
+}
+
+void blynkDeleteSuccessfulMsg(){
+  LCD.clear();
+  LCD.print(0, 0, "Deleted Successfully");
+  delay(800);
+  LCD.clear();
 }
 
 void addSuccessfulMsg(){
