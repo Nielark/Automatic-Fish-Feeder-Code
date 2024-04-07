@@ -140,8 +140,10 @@ int tempSchedCtr = 0, tempSchedPos = -1, tempFeedDispenseCtr = 0;
 int curHour, curYear;
 bool deleteFlag = false, weightDeleteFlag = false, schedReturnFlag = false, weightReturnFlag = false, menuFlag = false, delMenuFlag = false;
 
-WidgetLCD LCD(V7);
-int blynkHr, blynkMin, blynkUpLCD, blynkDownLCD, blynkScrollCtr = 0, blynkEditInput;
+WidgetLCD LCD1(V7);
+WidgetLCD LCD2(V20);
+int blynkHr, blynkMin, blynkUpLCD1, blynkDownLCD1, blynkUpLCD2, blynkDownLCD2, blynkScrollCtr1 = 0, blynkScrollCtr2 = 0, blynkEditInput, blynkFeedType, blynkWeekDur, blynkNumOfDispense;
+double blynkFeedWeight;
 bool blynkIsPM;
 
 void setup(){
@@ -201,8 +203,15 @@ void setup(){
   Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
 
   timer.setInterval(1000L, myTimer);
+  timer.setInterval(1000L, displayLCD2);
+
+  // For the feed button
   Blynk.setProperty(V8, "isDisabled", true); // Disable the edit button widget
   Blynk.setProperty(V9, "isDisabled", true); // Disable the delete button widget
+
+  // For the weight button
+  Blynk.setProperty(V17, "isDisabled", true); // Disable the edit button widget
+  Blynk.setProperty(V18, "isDisabled", true); // Disable the delete button widget
 }
 
 void loop(){
@@ -482,6 +491,10 @@ void loop(){
                                         BLYNK IOT CODE
 ========================================================================================*/
 
+/* ==============================
+          SET SCHEDULE
+================================*/
+
 // Getting the input for hour using number widget
 BLYNK_WRITE(V1){
   // Assign incoming value from pin V1 to a variable
@@ -540,10 +553,10 @@ BLYNK_WRITE(V4){
         blynkAddSuccessfulMsg();
       }
       else{
-        LCD.clear();
-        LCD.print(0, 0, "Please set hour");
+        LCD1.clear();
+        LCD1.print(0, 0, "Please set hour");
         delay(3000);
-        LCD.clear();
+        LCD1.clear();
       }
     }
    // do something when button is pressed;
@@ -566,28 +579,28 @@ BLYNK_WRITE(V4){
   Serial.println(pinValue);
 }
 
-// For scrolling up the content of LCD widget
+// For scrolling up the content of LCD1 widget
 BLYNK_WRITE(V5){
   int pinValue = param.asInt(); // assigning incoming value from pin V5 to a variable
   
   if (pinValue == 1){
-   blynkUpLCD = pinValue;
+   blynkUpLCD1 = pinValue;
   }
   
   Serial.print("V5 button value is: "); // printing value to serial monitor
-  Serial.println(blynkUpLCD);
+  Serial.println(blynkUpLCD1);
 }
 
-// For scrolling down the content of the LCD widget
+// For scrolling down the content of the LCD1 widget
 BLYNK_WRITE(V6){
   int pinValue = param.asInt(); // assigning incoming value from pin V6 to a variable
   
   if (pinValue == 1){
-   blynkDownLCD = pinValue;
+   blynkDownLCD1 = pinValue;
   }
   
   Serial.print("V6 button value is: "); // printing value to serial monitor
-  Serial.println(blynkDownLCD);
+  Serial.println(blynkDownLCD1);
 }
 
 // Selecting the respective number of the schedule
@@ -730,10 +743,10 @@ BLYNK_WRITE(V9){
       blynkEditSuccessfulMsg();
     }
     else{
-      LCD.clear();
-      LCD.print(0, 0, "Please set hour");
+      LCD1.clear();
+      LCD1.print(0, 0, "Please set hour");
       delay(3000);
-      LCD.clear();
+      LCD1.clear();
     }
   // do something when button is pressed;
   } 
@@ -759,45 +772,397 @@ BLYNK_WRITE(V9){
   Serial.println(pinValue);
 }
 
+/* ==============================
+          SET FEED WEIGHT
+================================*/
+
+// Getting the input for the type of feed using menu widget
+BLYNK_WRITE(V11){
+  switch (param.asInt()) {
+    case 0: {
+      
+      break;
+    }
+    case 1: {
+      blynkFeedType = 1;
+      break;
+    }
+    case 2: {
+      blynkFeedType = 2;
+    break;
+    }
+    case 3: {
+      blynkFeedType = 3;
+    break;
+    }
+  }
+  Serial.println(blynkFeedType);
+}
+
+// Getting the input for feed weight using number widget
+BLYNK_WRITE(V12){
+  // Assign incoming value from pin V12 to a variable
+  blynkFeedWeight = param.asDouble(); 
+
+  Serial.print("V12: ");
+  Serial.println(blynkFeedWeight);
+}
+
+/// Getting the input for week duration using number widget
+BLYNK_WRITE(V13){
+  // Assign incoming value from pin V13 to a variable
+  blynkWeekDur = param.asInt(); 
+
+  Serial.print("V13: ");
+  Serial.println(blynkWeekDur);
+}
+
+// Getting the input for number of dispense per day using number widget
+BLYNK_WRITE(V14){
+  // Assign incoming value from pin V14 to a variable
+  blynkNumOfDispense = param.asInt(); 
+
+  Serial.print("V14: ");
+  Serial.println(blynkNumOfDispense);
+}
+
+// Set the input feed information and save to EEPROM
+BLYNK_WRITE(V16){
+  int pinValue = param.asInt(); // assigning incoming value from pin V6 to a variable
+  
+  // When the set button is press save the input to the structure of array when feedSched is not full and hour input is not 0
+  if (pinValue == 1){
+    if(feedWeightCtr < 10){
+      if(blynkFeedType != 0 && blynkFeedWeight != 0 && blynkWeekDur != 0 && blynkNumOfDispense != 0){
+        feedQuantity[feedWeightCtr].feedType = blynkFeedType;
+        feedQuantity[feedWeightCtr].feedWeight = blynkFeedWeight;
+        feedQuantity[feedWeightCtr].weekDuration = blynkWeekDur;
+        feedQuantity[feedWeightCtr].howManyTimesADay = blynkNumOfDispense;
+        feedQuantity[feedWeightCtr].totalNumOfTimes = (blynkWeekDur * 1) * blynkNumOfDispense;
+        feedQuantity[feedWeightCtr].isActivated = true;
+        feedQuantity[feedWeightCtr].isFinished = true;
+
+        feedWeightCtr++;                   // Increment the number of feed weight list
+        EEPROM.update(2, feedWeightCtr);   // Update the number of feed weight in the EEPROM
+
+        updateWeightEEPROM();              // Update changes in the EEPROM
+
+        //blynkAddSuccessfulMsg();           // Display a successful message when the data is save
+      }
+      else{
+        // LCD2.clear();
+        // LCD2.print(0, 0, "Please set hour");
+        // delay(3000);
+        // LCD2.clear();
+      }
+    }
+   // do something when button is pressed;
+  } 
+  else if (pinValue == 0) {
+   // do something when button is released;
+  }
+
+  // Initialize the variables back into zero
+  blynkFeedType = 0;
+  blynkFeedWeight = 0;
+  blynkWeekDur = 0;
+  blynkNumOfDispense = 0;
+  
+  // Display 0 as a default in the widgets
+  Blynk.virtualWrite(V11, 0);
+  Blynk.virtualWrite(V12, 0);
+  Blynk.virtualWrite(V13, 0);
+  Blynk.virtualWrite(V14, 0);
+  
+  Serial.print("V16 button value is: "); // printing value to serial monitor
+  Serial.println(pinValue);
+}
+
+// Editing the weight
+BLYNK_WRITE(V17){
+  int pinValue = param.asInt(); // assigning incoming value from pin V9 to a variable
+  
+  if (pinValue == 1){
+    if(blynkFeedType != 0 && blynkFeedWeight != 0 && blynkWeekDur != 0 && blynkNumOfDispense != 0){
+      feedQuantity[blynkEditInput].feedType = blynkFeedType;
+      feedQuantity[blynkEditInput].feedWeight = blynkFeedWeight;
+      feedQuantity[blynkEditInput].weekDuration = blynkWeekDur;
+      feedQuantity[blynkEditInput].howManyTimesADay = blynkNumOfDispense;
+      feedQuantity[blynkEditInput].totalNumOfTimes = (blynkWeekDur * 1) * blynkNumOfDispense;
+      feedQuantity[blynkEditInput].isActivated = true;
+      feedQuantity[blynkEditInput].isFinished = true;
+
+      updateWeightEEPROM();              // Update changes in the EEPROM
+      
+      //blynkEditSuccessfulMsg();          // Display a successful message when the data is edited
+    }
+    else{
+      // LCD2.clear();
+      // LCD2.print(0, 0, "Please set hour");
+      // delay(3000);
+      // LCD2.clear();
+    }
+  // do something when button is pressed;
+  } 
+  else if (pinValue == 0) {
+   // do something when button is released;
+  }
+
+  // Initialize the variables back into zero
+  blynkFeedType = 0;
+  blynkFeedWeight = 0;
+  blynkWeekDur = 0;
+  blynkNumOfDispense = 0;
+  
+  // Display 0 as a default in the widgets
+  Blynk.virtualWrite(V11, 0);
+  Blynk.virtualWrite(V12, 0);
+  Blynk.virtualWrite(V13, 0);
+  Blynk.virtualWrite(V14, 0);
+  Blynk.virtualWrite(V19, 0);
+  Blynk.setProperty(V16, "isDisabled", false); // Enable the set button widget
+  Blynk.setProperty(V17, "isDisabled", true); // Disable the edit button widget
+  Blynk.setProperty(V18, "isDisabled", true); // Disable the delete button widget
+  Blynk.virtualWrite(V23, "0 remaining out of 0");
+  
+  Serial.print("V17 button value is: "); // printing value to serial monitor
+  Serial.println(pinValue);
+}
+
+// Deleting the value of selected weight
+BLYNK_WRITE(V18){
+  int pinValue = param.asInt(); // assigning incoming value from pin V8 to a variable
+  
+  if (pinValue == 1){
+    for(int i = blynkEditInput; i < feedWeightCtr; i++){
+      // When the 10th schedule is selected, initialize all value into 0
+      if(i == 9){
+        feedQuantity[i] = {0, 0, 0, 0, 0, 0, 0};
+        // feedTime[i].hour = 0;
+        // feedTime[i].minute = 0;
+        // feedTime[i].isPM = 0;
+        // feedTime[i].isActivated = 0;
+      }
+      else {
+        feedQuantity[i] = feedQuantity[i + 1];  // Traverse the value starting from the index of deleted schedule
+      }
+
+      updateWeightEEPROM();              // Update changes in the EEPROM
+    }
+
+    feedWeightCtr--;                   // Increment the number of feed weight list
+    EEPROM.update(2, feedWeightCtr);   // Update the number of feed weight in the EEPROM
+
+    blynkDeleteSuccessfulMsg();
+  // do something when button is pressed;
+  } 
+  else if (pinValue == 0) {
+   // do something when button is released;
+  }
+
+  // Initialize the variables back into zero
+  blynkFeedType = 0;
+  blynkFeedWeight = 0;
+  blynkWeekDur = 0;
+  blynkNumOfDispense = 0;
+  
+  // Display 0 as a default in the widgets
+  Blynk.virtualWrite(V11, 0);
+  Blynk.virtualWrite(V12, 0);
+  Blynk.virtualWrite(V13, 0);
+  Blynk.virtualWrite(V14, 0);
+  Blynk.virtualWrite(V19, 0);
+  Blynk.setProperty(V16, "isDisabled", false); // Enable the set button widget
+  Blynk.setProperty(V17, "isDisabled", true); // Disable the edit button widget
+  Blynk.setProperty(V18, "isDisabled", true); // Disable the delete button widget
+  Blynk.virtualWrite(V23, "0 remaining out of 0");
+  
+  Serial.print("V18 button value is: "); // printing value to serial monitor
+  Serial.println(pinValue);
+}
+
+// Selecting the respective number of the weight
+BLYNK_WRITE(V19){
+  int pinValue = param.asInt(); // assigning incoming value from pin V10 to a variable
+
+  Blynk.setProperty(V16, "isDisabled", true);  // Disable the set button widget
+  Blynk.setProperty(V17, "isDisabled", false); // Enable the edit button widget
+  Blynk.setProperty(V18, "isDisabled", false); // Enable the delete button widget
+
+  switch (param.asInt()) {
+    case 0: {
+      Blynk.setProperty(V16, "isDisabled", false); // Enable the set button widget
+      Blynk.setProperty(V17, "isDisabled", true); // Disable the edit button widget
+      Blynk.setProperty(V18, "isDisabled", true); // Disable the delete button widget
+      Blynk.virtualWrite(V23, "0 remaining out of 0");
+
+      // Display 0 as a default in the widgets
+      Blynk.virtualWrite(V11, 0);
+      Blynk.virtualWrite(V12, 0);
+      Blynk.virtualWrite(V13, 0);
+      Blynk.virtualWrite(V14, 0);
+      break;
+    }
+    case 1: {
+      blynkEditInput = 0;
+      break;
+    }
+    case 2: {
+      blynkEditInput = 1;
+      break;
+    }
+    case 3: {
+      blynkEditInput = 2;
+      break;
+    }  
+    case 4: { // Item 2
+      blynkEditInput = 3;
+      break;
+    }  
+    case 5: {
+      blynkEditInput = 4;
+      break;
+    }  
+    case 6: {
+      blynkEditInput = 5;
+      break;
+    }
+    case 7: {
+      blynkEditInput = 6;
+      break;
+    }   
+    case 8: {
+      blynkEditInput = 7;
+      break;
+    }   
+    case 9: {
+      blynkEditInput = 8;
+      break;
+    }   
+    case 10: {
+      blynkEditInput = 9;
+      break;
+    }    
+  }
+  
+  if(pinValue != 0){
+    // Display the selected schedule in the hour, minute, and AM or PM widget
+    Blynk.virtualWrite(V11, feedQuantity[blynkEditInput].feedType);
+    Blynk.virtualWrite(V12, feedQuantity[blynkEditInput].feedWeight);
+    Blynk.virtualWrite(V13, feedQuantity[blynkEditInput].weekDuration);
+    Blynk.virtualWrite(V14, feedQuantity[blynkEditInput].howManyTimesADay);
+    Blynk.virtualWrite(V23, String(feedQuantity[blynkEditInput].totalNumOfTimes) + " remaining out of " + String(feedQuantity[blynkEditInput].weekDuration * feedQuantity[blynkEditInput].howManyTimesADay));
+
+    // Store the value in the variables
+    blynkFeedType = feedQuantity[blynkEditInput].feedType;
+    blynkFeedWeight = feedQuantity[blynkEditInput].feedWeight;
+    blynkWeekDur = feedQuantity[blynkEditInput].weekDuration;
+    blynkNumOfDispense = feedQuantity[blynkEditInput].howManyTimesADay;
+  }
+}
+
+/* ==============================
+        SET CUSTOM SCHEDULE
+================================*/
+
 void myTimer(){
   // This function describes what will happen with each timer tick
   // e.g. writing sensor value to datastream V5
   Blynk.virtualWrite(V0, cm);
 
-  if(feedTime[blynkScrollCtr].isActivated) {
+  if(feedTime[blynkScrollCtr1].isActivated) {
     // Adds leading zero for time less than 10 and convert it into string
-    String fHour = (feedTime[blynkScrollCtr].hour < 10 ? "0" : "") + String(feedTime[blynkScrollCtr].hour);
-    String fMinute = (feedTime[blynkScrollCtr].minute < 10 ? "0" : "") + String(feedTime[blynkScrollCtr].minute);
-    String AMorPM = (feedTime[blynkScrollCtr].isPM ? "PM" : "AM");
+    String fHour = (feedTime[blynkScrollCtr1].hour < 10 ? "0" : "") + String(feedTime[blynkScrollCtr1].hour);
+    String fMinute = (feedTime[blynkScrollCtr1].minute < 10 ? "0" : "") + String(feedTime[blynkScrollCtr1].minute);
+    String AMorPM = (feedTime[blynkScrollCtr1].isPM ? "PM" : "AM");
 
-    LCD.print(0, 0, String(blynkScrollCtr + 1) + ") " + fHour + ":" + fMinute + " " + AMorPM);
+    LCD1.print(0, 0, String(blynkScrollCtr1 + 1) + ") " + fHour + ":" + fMinute + " " + AMorPM);
 
     if(feedSchedCtr > 1){
-      String fHour2 = (feedTime[blynkScrollCtr + 1].hour < 10 ? "0" : "") + String(feedTime[blynkScrollCtr + 1].hour);
-      String fMinute2 = (feedTime[blynkScrollCtr + 1].minute < 10 ? "0" : "") + String(feedTime[blynkScrollCtr + 1].minute);
-      String AMorPM2 = (feedTime[blynkScrollCtr + 1].isPM ? "PM" : "AM");
+      String fHour2 = (feedTime[blynkScrollCtr1 + 1].hour < 10 ? "0" : "") + String(feedTime[blynkScrollCtr1 + 1].hour);
+      String fMinute2 = (feedTime[blynkScrollCtr1 + 1].minute < 10 ? "0" : "") + String(feedTime[blynkScrollCtr1 + 1].minute);
+      String AMorPM2 = (feedTime[blynkScrollCtr1 + 1].isPM ? "PM" : "AM");
 
-      LCD.print(0, 1, String(blynkScrollCtr + 2) + ") " + fHour2 + ":" + fMinute2 + " " + AMorPM2);
+      LCD1.print(0, 1, String(blynkScrollCtr1 + 2) + ") " + fHour2 + ":" + fMinute2 + " " + AMorPM2);
     }
   }
 
-  if(blynkUpLCD == 1){ // Scroll up
-    LCD.clear();
-    if (blynkScrollCtr > 0) {
-      blynkScrollCtr--;
+  if(blynkUpLCD1 == 1){ // Scroll up
+    LCD1.clear();
+    if (blynkScrollCtr1 > 0) {
+      blynkScrollCtr1--;
     }
 
-    blynkUpLCD = 0;
+    blynkUpLCD1 = 0;
   }
   // Press 'D' to scroll the list downward
-  if(blynkDownLCD == 1){ // Scroll down
-    LCD.clear();
-    if (blynkScrollCtr < (feedSchedCtr - 1)) {
-      blynkScrollCtr++;
+  if(blynkDownLCD1 == 1){ // Scroll down
+    LCD1.clear();
+    if (blynkScrollCtr1 < (feedSchedCtr - 1)) {
+      blynkScrollCtr1++;
     }
 
-    blynkDownLCD = 0;
+    blynkDownLCD1 = 0;
   }
+}
+
+void displayLCD2() {
+    String feedType;
+
+    switch(feedQuantity[blynkScrollCtr2].feedType) {
+        case 1:
+            feedType = "Mash";
+            break;
+        case 2:
+            feedType = "Starter";
+            break;
+        case 3:
+            feedType = "Grower";
+            break;
+    }
+
+    if(feedQuantity[blynkScrollCtr2].isActivated) {
+        LCD2.print(0, 0, String(blynkScrollCtr2 + 1) + ") " + feedType);
+        LCD2.print(3, 1, String(feedQuantity[blynkScrollCtr2].feedWeight) + " Kg");
+    }
+
+    // Scroll up
+    if(blynkUpLCD2 == 1 && blynkScrollCtr2 > 0) {
+        LCD2.clear();
+        blynkScrollCtr2--;
+        blynkUpLCD2 = 0;
+    }
+
+    // Scroll down
+    if(blynkDownLCD2 == 1 && blynkScrollCtr2 < (feedWeightCtr - 1)) {
+        LCD2.clear();
+        blynkScrollCtr2++;
+        blynkDownLCD2 = 0;
+    }
+}
+
+// For scrolling up the content of LCD2 widget
+BLYNK_WRITE(V21){
+  int pinValue = param.asInt(); // assigning incoming value from pin V5 to a variable
+  
+  if (pinValue == 1){
+   blynkUpLCD2 = pinValue;
+  }
+  
+  Serial.print("V21 button value is: "); // printing value to serial monitor
+  Serial.println(blynkUpLCD2);
+}
+
+// For scrolling down the content of the LCD2 widget
+BLYNK_WRITE(V22){
+  int pinValue = param.asInt(); // assigning incoming value from pin V6 to a variable
+  
+  if (pinValue == 1){
+   blynkDownLCD2 = pinValue;
+  }
+  
+  Serial.print("V22 button value is: "); // printing value to serial monitor
+  Serial.println(blynkDownLCD2);
 }
 
 /* =======================================================================================
@@ -2444,24 +2809,24 @@ void setFeedWeightMenu() {
 }
 
 void blynkAddSuccessfulMsg(){
-  LCD.clear();
-  LCD.print(0, 0, "Added Successfully");
+  LCD1.clear();
+  LCD1.print(0, 0, "Added Successfully");
   delay(800);
-  LCD.clear();
+  LCD1.clear();
 }
 
 void blynkEditSuccessfulMsg(){
-  LCD.clear();
-  LCD.print(0, 0, "edited Successfully");
+  LCD1.clear();
+  LCD1.print(0, 0, "edited Successfully");
   delay(800);
-  LCD.clear();
+  LCD1.clear();
 }
 
 void blynkDeleteSuccessfulMsg(){
-  LCD.clear();
-  LCD.print(0, 0, "Deleted Successfully");
+  LCD1.clear();
+  LCD1.print(0, 0, "Deleted Successfully");
   delay(800);
-  LCD.clear();
+  LCD1.clear();
 }
 
 void addSuccessfulMsg(){
