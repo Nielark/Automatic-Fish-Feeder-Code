@@ -212,18 +212,18 @@ void setup(){
   //startBuzzerSound();
   showDeviceName();
   playPacman();
-  //askBlynkConnection();
+  askBlynkConnection();
 
-  // EspSerial.begin(ESP8266_BAUD);
-  // delay(10);
+  EspSerial.begin(ESP8266_BAUD);
+  delay(10);
   
-  // if(option == 1){
-  //   Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
-  // }
+  if(option == 1){
+    Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
+  }
 
-  // blynkButtonSetUp();
+  blynkButtonSetUp();
 
-  // timer.setInterval(1000L, myTimer);
+  timer.setInterval(1000L, myTimer);
 
   lcd.createChar(0, arrowUp);
   lcd.createChar(1, arrowDown);
@@ -232,10 +232,10 @@ void setup(){
 }
 
 void loop(){
-  // if(option == 1){
-  //   Blynk.run();
-  //   timer.run();
-  // }
+  if(option == 1){
+    Blynk.run();
+    timer.run();
+  }
 
   Temperaturet = (uint8_t)READ_TEMP;
   ADC_Raw = analogRead(DO_PIN);
@@ -256,15 +256,15 @@ void loop(){
 
     DOlevel = readDO(ADC_Voltage, Temperaturet) / 1000;
 
-    // if(DOlevel > 5 && DOlevel < 5.5){
-    //   Blynk.logEvent("dissolve_oxygen_status", "Warning: DO level is at " + String(DOlevel) + " ppm. Ensure DO level stays above 5 ppm.");
-    // }
-    // else if(DOlevel < 5){
-    //   Blynk.logEvent("dissolve_oxygen_status", "Alert: DO level is below 5 ppm. Oxygen depletion can be harmful to aquatic life. Take immediate action to aerate the water.");
-    // }
+    if(DOlevel > 5 && DOlevel < 5.5){
+      Blynk.logEvent("dissolve_oxygen_status", "Warning: DO level is at " + String(DOlevel) + " ppm. Ensure DO level stays above 5 ppm.");
+    }
+    else if(DOlevel < 5){
+      Blynk.logEvent("dissolve_oxygen_status", "Alert: DO level is below 5 ppm. Oxygen depletion can be harmful to aquatic life. Take immediate action to aerate the water.");
+    }
 
     if(cm <= 5 && cm > 0 && feedWarningCtr != 5){
-      // Blynk.logEvent("low_feed_level", "Feed level is at " + String(cm) + " cm, Please Refill Soon.");
+      Blynk.logEvent("low_feed_level", "Feed level is at " + String(cm) + " cm, Please Refill Soon.");
       tone(buzzerPin, 700);
       delay(100);
       noTone(buzzerPin);
@@ -286,7 +286,7 @@ void loop(){
     }
     else{
       lcd.clear();
-      // Blynk.logEvent("feed_container_is_empty", "🐟 Please refill the container so that your fish receive their scheduled feedings.");
+      Blynk.logEvent("feed_container_is_empty", "🐟 Please refill the container so that your fish receive their scheduled feedings.");
       tone(buzzerPin, 300, 500);
 
       lcd.setCursor(0, 1);
@@ -682,17 +682,17 @@ void dispenseFeed(String schedType) {
     if(feedQuantity[feedDispenseCtr].totalNumOfTimes != 0) {
       servoM2.detach();
 
-      // if(feedQuantity[feedDispenseCtr].feedType == 1) {
-      //   feedType = "Mash";
-      // }
-      // else if(feedQuantity[feedDispenseCtr].feedType == 2) {
-      //   feedType = "Starter";
-      // }
-      // else if(feedQuantity[feedDispenseCtr].feedType == 3) {
-      //   feedType = "Grower";
-      // }
+      if(feedQuantity[feedDispenseCtr].feedType == 1) {
+        feedType = "Mash";
+      }
+      else if(feedQuantity[feedDispenseCtr].feedType == 2) {
+        feedType = "Starter";
+      }
+      else if(feedQuantity[feedDispenseCtr].feedType == 3) {
+        feedType = "Grower";
+      }
 
-      // Blynk.logEvent("started_feeding", "Start Feeding " + feedType + "  " + String(feedQuantity[feedDispenseCtr].feedWeight) + " Kg");
+      Blynk.logEvent("started_feeding", "Start Feeding " + feedType + "  " + String(feedQuantity[feedDispenseCtr].feedWeight) + " Kg");
 
       const unsigned long weightTimer = 1000;
       unsigned long weightPrevTime = 0;
@@ -746,7 +746,7 @@ void dispenseFeed(String schedType) {
     unsigned long weightPrevTime = 0;
     unsigned long weightCurrTime = 0;
 
-    // Blynk.logEvent("started_feeding", "Start Feeding" + feedType + "  " + String(tempSched[tempFeedDispenseCtr].feedWeight) + " Kg");
+    Blynk.logEvent("started_feeding", "Start Feeding" + feedType + "  " + String(tempSched[tempFeedDispenseCtr].feedWeight) + " Kg");
 
     if(tempSched[tempFeedDispenseCtr].feedWeight <= 0.3){
       customWeight = 0;
@@ -854,10 +854,10 @@ void dispenseFeed(String schedType) {
 
     updateWeightEEPROM();
 
-    // Blynk.logEvent("done_feeding", "Done Feeding " + feedType + "  " + String(feedQuantity[feedDispenseCtr].feedWeight) + " Kg");
+    Blynk.logEvent("done_feeding", "Done Feeding " + feedType + "  " + String(feedQuantity[feedDispenseCtr].feedWeight) + " Kg");
   }
   else{
-    // Blynk.logEvent("done_feeding", "Done Feeding " + feedType + "  " + String(tempSched[tempFeedDispenseCtr].feedWeight) + " Kg");
+    Blynk.logEvent("done_feeding", "Done Feeding " + feedType + "  " + String(tempSched[tempFeedDispenseCtr].feedWeight) + " Kg");
 
     for(int i = tempFeedDispenseCtr; i < tempSchedCtr; i++){
       if(i == 9){
@@ -872,7 +872,7 @@ void dispenseFeed(String schedType) {
 
     tempSchedCtr--;   // Decrement the number of schedule
     EEPROM.update(1, tempSchedCtr);
-    // Blynk.virtualWrite(V38, String(tempSchedCtr) + " / 10");
+    Blynk.virtualWrite(V38, String(tempSchedCtr) + " / 10");
   }
 
   playNeverGonnaGiveYouUp();

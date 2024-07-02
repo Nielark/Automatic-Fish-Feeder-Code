@@ -253,7 +253,7 @@ void addFeedWeight() {
 
     feedWeightCtr++;
     EEPROM.update(2, feedWeightCtr);
-    // Blynk.virtualWrite(V39, String(feedWeightCtr) + " / 10");
+    Blynk.virtualWrite(V39, String(feedWeightCtr) + " / 10");
 
     updateWeightEEPROM();
     addSuccessfulMsg();
@@ -302,7 +302,7 @@ void deleteFeedWeight(int delInput) {
 
     feedWeightCtr--;   // Decrement the number of schedule
     EEPROM.update(2, feedWeightCtr);
-    // Blynk.virtualWrite(V39, String(feedWeightCtr) + " / 10");
+    Blynk.virtualWrite(V39, String(feedWeightCtr) + " / 10");
 
     if(feedWeightCtr == 0){
       feedDispenseCtr = 0;
