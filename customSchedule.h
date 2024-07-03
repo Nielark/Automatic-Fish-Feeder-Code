@@ -193,7 +193,6 @@ void addTemporarySched() {
       EEPROM.update(1, tempSchedCtr);
 
       updateTemporarySchedEEPROM();
-      // Blynk.virtualWrite(V38, String(tempSchedCtr) + " / 10");
       addSuccessfulMsg();
       return;
     }
@@ -216,7 +215,6 @@ void addTemporarySched() {
       EEPROM.update(1, tempSchedCtr);
 
       updateTemporarySchedEEPROM();
-      // Blynk.virtualWrite(V38, String(tempSchedCtr) + " / 10");
       addSuccessfulMsg();
     }
     else{
@@ -403,7 +401,6 @@ void deleteTemporarySched(int delInput) {
 
     tempSchedCtr--;   // Decrement the number of schedule
     EEPROM.update(1, tempSchedCtr);
-    // Blynk.virtualWrite(V38, String(tempSchedCtr) + " / 10");
     //deleteFlag = false;
     deleteSuccessfulMsg();
   }

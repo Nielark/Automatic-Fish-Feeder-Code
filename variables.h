@@ -24,20 +24,6 @@ extern int tempSchedCtr, tempFeedDispenseCtr;
 extern int curHour, curYear;
 extern bool deleteFlag, weightDeleteFlag, schedReturnFlag, weightReturnFlag, menuFlag, delMenuFlag;
 
-
-// Variable declaration for time schedule in blynk
-extern int blynkHr, blynkMin, blynkUpLCD1, blynkDownLCD1, blynkScrollCtr1, blynkEditInput;
-extern bool blynkIsPM;
-
-// Variable declaration for weight in blynk
-extern double blynkFeedWeight;
-extern int blynkUpLCD2, blynkDownLCD2, blynkScrollCtr2, blynkFeedType, blynkWeekDur, blynkNumOfDispense;
-
-// Variable declaration for custom schedule in blynk
-extern int blynkUpLCD3, blynkDownLCD3, blynkScrollCtr3, blynkMonth, blynkDate, blynkCustomHr, blynkCustomMin;
-extern bool blynkCustomIsPM;
-extern double blynkCustomFeedWeight;
-
 void addSuccessfulMsg(){
   lcd.clear();
   lcd.setCursor(1, 1);

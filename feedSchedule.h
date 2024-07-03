@@ -161,7 +161,6 @@ void addFeedSched() {
     if(feedSchedCtr == 0){
       feedSchedCtr++;
       EEPROM.update(0, feedSchedCtr);
-      // Blynk.virtualWrite(V37, String(feedSchedCtr) + " / 10");
 
       sortFeedSched();
       addSuccessfulMsg();
@@ -182,7 +181,6 @@ void addFeedSched() {
     if(!isAlreadySet) {
       feedSchedCtr++;
       EEPROM.update(0, feedSchedCtr);
-      // Blynk.virtualWrite(V37, String(feedSchedCtr) + " / 10");
 
       sortFeedSched();
       addSuccessfulMsg();
@@ -325,7 +323,6 @@ void deleteFeedSched(int delInput) {
 
     feedSchedCtr--;   // Decrement the number of schedule
     EEPROM.update(0, feedSchedCtr);
-    // Blynk.virtualWrite(V37, String(feedSchedCtr) + " / 10");
     deleteSuccessfulMsg();
   }
 }

@@ -10,7 +10,6 @@
 
 #include "KeypadInput.h"
 #include "struct.h"
-#include "blynkCode.h"
 #include "sortSched.h"
 #include "eeprom1.h"
 #include "feedSchedule.h"
@@ -20,42 +19,6 @@
 
 #include "Tone440.h"      // A library for tone pitch that uses 440 Hz frequency
 #define TONE_USE_DOUBLE   // Define to use decimal type frequencies from the library
-
-/* Fill-in information from Blynk Device Info here */
-// #define BLYNK_TEMPLATE_ID "TMPL6-P0buzgr"
-// #define BLYNK_TEMPLATE_NAME "Fish Feeder"
-#define BLYNK_AUTH_TOKEN "L1yBXQglHRyFIaZfSNA3h3FV7dJjL_Y7"
-
-/* Comment this out to disable prints and save space */
-//#define BLYNK_PRINT Serial
-
-#include <ESP8266_Lib.h>
-// #include <BlynkSimpleShieldEsp8266.h>
-
-// Your WiFi credentials.
-//Set password to "" for open networks.
-// char ssid[] = "GlobeAtHome_E719F";
-// char pass[] = "qdx4xD5SBoi";
-// char ssid[] = "GlobeAtHome_E719F_EXT";
-// char pass[] = "qdx4xD5SBoi";
-// char ssid[] = "ICT";
-// char pass[] = "ict.services";
-
-// char ssid[] = "iCARE";
-// char pass[] = "ICARE2023";
-
-char ssid[] = "FishFeeder";
-char pass[] = "fishfeeder"; 
-
-// Hardware Serial on Mega, Leonardo, Micro...
-#define EspSerial Serial1
-
-// Your ESP8266 baud rate:
-#define ESP8266_BAUD 38400
-
-ESP8266 wifi(&EspSerial);
-
-BlynkTimer timer;
 
 // Load cell variables
 const int pinDT = 2;
@@ -167,26 +130,7 @@ int tempSchedCtr = 0, tempFeedDispenseCtr = 0;
 int curHour, curYear;
 int feedWarningCtr = 0;
 bool deleteFlag = false, weightDeleteFlag = false, schedReturnFlag = false, weightReturnFlag = false, menuFlag = false, delMenuFlag = false;
-
-WidgetLCD LCD1(V7);
-WidgetLCD LCD2(V20);
-WidgetLCD LCD3(V34);
-
-// Variable declaration for time schedule in blynk
-int blynkHr, blynkMin, blynkUpLCD1, blynkDownLCD1, blynkScrollCtr1 = 0, blynkEditInput;
-bool blynkIsPM;
-
-// Variable declaration for weight in blynk
-double blynkFeedWeight;
-int blynkUpLCD2, blynkDownLCD2, blynkScrollCtr2 = 0, blynkFeedType, blynkWeekDur, blynkNumOfDispense;
-
-// Variable declaration for custom schedule in blynk
-int blynkUpLCD3, blynkDownLCD3, blynkScrollCtr3 = 0, blynkMonth = 0, blynkDate = 0, blynkCustomHr = 0, blynkCustomMin = 0;
-bool blynkCustomIsPM;
-double blynkCustomFeedWeight = 0;
-
 double customWeight = 0, tot = 0;
-int option;
 
 void setup(){
   Serial.begin(38400);
@@ -212,18 +156,6 @@ void setup(){
   //startBuzzerSound();
   showDeviceName();
   playPacman();
-  //askBlynkConnection();
-
-  // EspSerial.begin(ESP8266_BAUD);
-  // delay(10);
-  
-  // if(option == 1){
-  //   Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
-  // }
-
-  // blynkButtonSetUp();
-
-  // timer.setInterval(1000L, myTimer);
 
   lcd.createChar(0, arrowUp);
   lcd.createChar(1, arrowDown);
@@ -232,11 +164,6 @@ void setup(){
 }
 
 void loop(){
-  // if(option == 1){
-  //   Blynk.run();
-  //   timer.run();
-  // }
-
   Temperaturet = (uint8_t)READ_TEMP;
   ADC_Raw = analogRead(DO_PIN);
   ADC_Voltage = uint32_t(VREF) * ADC_Raw / ADC_RES;
@@ -256,15 +183,7 @@ void loop(){
 
     DOlevel = readDO(ADC_Voltage, Temperaturet) / 1000;
 
-    // if(DOlevel > 5 && DOlevel < 5.5){
-    //   Blynk.logEvent("dissolve_oxygen_status", "Warning: DO level is at " + String(DOlevel) + " ppm. Ensure DO level stays above 5 ppm.");
-    // }
-    // else if(DOlevel < 5){
-    //   Blynk.logEvent("dissolve_oxygen_status", "Alert: DO level is below 5 ppm. Oxygen depletion can be harmful to aquatic life. Take immediate action to aerate the water.");
-    // }
-
     if(cm <= 5 && cm > 0 && feedWarningCtr != 5){
-      // Blynk.logEvent("low_feed_level", "Feed level is at " + String(cm) + " cm, Please Refill Soon.");
       tone(buzzerPin, 700);
       delay(100);
       noTone(buzzerPin);
@@ -286,7 +205,6 @@ void loop(){
     }
     else{
       lcd.clear();
-      // Blynk.logEvent("feed_container_is_empty", "🐟 Please refill the container so that your fish receive their scheduled feedings.");
       tone(buzzerPin, 300, 500);
 
       lcd.setCursor(0, 1);
@@ -546,46 +464,6 @@ void startBuzzerSound(){
   noTone(buzzerPin);
 }
 
-void askBlynkConnection(){
-  menuFlag = true;
-
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Connect to blynk now");
-  lcd.setCursor(0, 1);
-  lcd.print("[1] - YES");
-  lcd.setCursor(0, 2);
-  lcd.print("[2] - NO");
-  lcd.setCursor(0, 3);
-  lcd.print("Enter your choice:");
-  option = getInput(19, 3, 1, 1, 2);
-  menuFlag = false;
-
-  if(option == 1){
-    lcd.clear();
-    lcd.setCursor(0, 1);
-    lcd.print("Connecting to blynk");
-  }
-}
-
-void blynkButtonSetUp(){
-  // For the feed button
-  Blynk.setProperty(V8, "isDisabled", true); // Disable the edit button widget
-  Blynk.setProperty(V9, "isDisabled", true); // Disable the delete button widget
-
-  // For the weight button
-  Blynk.setProperty(V17, "isDisabled", true); // Disable the edit button widget
-  Blynk.setProperty(V18, "isDisabled", true); // Disable the delete button widget
-
-  // For the custom schedule button
-  Blynk.setProperty(V32, "isDisabled", true); // Disable the edit button widget
-  Blynk.setProperty(V33, "isDisabled", true); // Disable the delete button widget
-
-  Blynk.virtualWrite(V37, String(feedSchedCtr) + " / 10");
-  Blynk.virtualWrite(V38, String(tempSchedCtr) + " / 10");
-  Blynk.virtualWrite(V39, String(feedWeightCtr) + " / 10");
-}
-
 void playPacman(){
   double noteFrequency[] = {
     NOTE_B4, NOTE_B5, NOTE_FS5, NOTE_DS5,
@@ -682,18 +560,6 @@ void dispenseFeed(String schedType) {
     if(feedQuantity[feedDispenseCtr].totalNumOfTimes != 0) {
       servoM2.detach();
 
-      // if(feedQuantity[feedDispenseCtr].feedType == 1) {
-      //   feedType = "Mash";
-      // }
-      // else if(feedQuantity[feedDispenseCtr].feedType == 2) {
-      //   feedType = "Starter";
-      // }
-      // else if(feedQuantity[feedDispenseCtr].feedType == 3) {
-      //   feedType = "Grower";
-      // }
-
-      // Blynk.logEvent("started_feeding", "Start Feeding " + feedType + "  " + String(feedQuantity[feedDispenseCtr].feedWeight) + " Kg");
-
       const unsigned long weightTimer = 1000;
       unsigned long weightPrevTime = 0;
       unsigned long weightCurrTime = 0;
@@ -745,8 +611,6 @@ void dispenseFeed(String schedType) {
     const unsigned long weightTimer = 1000;
     unsigned long weightPrevTime = 0;
     unsigned long weightCurrTime = 0;
-
-    // Blynk.logEvent("started_feeding", "Start Feeding" + feedType + "  " + String(tempSched[tempFeedDispenseCtr].feedWeight) + " Kg");
 
     if(tempSched[tempFeedDispenseCtr].feedWeight <= 0.3){
       customWeight = 0;
@@ -853,12 +717,8 @@ void dispenseFeed(String schedType) {
     feedQuantity[feedDispenseCtr].totalNumOfTimes--;
 
     updateWeightEEPROM();
-
-    // Blynk.logEvent("done_feeding", "Done Feeding " + feedType + "  " + String(feedQuantity[feedDispenseCtr].feedWeight) + " Kg");
   }
   else{
-    // Blynk.logEvent("done_feeding", "Done Feeding " + feedType + "  " + String(tempSched[tempFeedDispenseCtr].feedWeight) + " Kg");
-
     for(int i = tempFeedDispenseCtr; i < tempSchedCtr; i++){
       if(i == 9){
         tempSched[i] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -872,7 +732,6 @@ void dispenseFeed(String schedType) {
 
     tempSchedCtr--;   // Decrement the number of schedule
     EEPROM.update(1, tempSchedCtr);
-    // Blynk.virtualWrite(V38, String(tempSchedCtr) + " / 10");
   }
 
   playNeverGonnaGiveYouUp();
