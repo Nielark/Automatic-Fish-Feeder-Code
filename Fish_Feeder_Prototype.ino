@@ -188,6 +188,9 @@ double blynkCustomFeedWeight = 0;
 double customWeight = 0, tot = 0;
 int option;
 
+bool systemIsLocked = true;
+String password = "2024";
+
 void setup(){
   Serial.begin(38400);
   rtc.begin();
@@ -353,10 +356,75 @@ void loop(){
     }
   }
 
-  if (keyInput == 'D'){
+  // For unlocking and locking the system
+  if(keyInput == '1') {
+    String inputPassword;
+
+    lcd.clear();
+    if(systemIsLocked) {
+      lcd.setCursor(0, 0);
+      lcd.print("Enter the password");
+      inputPassword = getInput(0, 1, 4, 0, 9999);
+
+      lcd.clear();
+      if(inputPassword == password){
+        systemIsLocked = false;
+
+        lcd.setCursor(3, 1);
+        lcd.print("System has been");
+        lcd.setCursor(6, 2);
+        lcd.print("unlocked");
+      }
+      else {
+        lcd.setCursor(5, 1);
+        lcd.print("Password is");
+        lcd.setCursor(5, 2);
+        lcd.print("incorrect!");
+      }
+    }
+    else{
+      int choice;
+      delMenuFlag = true;
+
+      lcd.setCursor(0, 0);
+      lcd.print("Lock the system now");
+      lcd.setCursor(0, 1);
+      lcd.print("[1] - YES");
+      lcd.setCursor(0, 2);
+      lcd.print("[2] - NO");
+      lcd.setCursor(0, 3);
+      lcd.print("Enter the number:");
+      choice = getInput(19, 3, 1, 1, 2);
+
+      lcd.clear();
+      if(choice == 1){
+        systemIsLocked = true;
+
+        lcd.setCursor(3, 1);
+        lcd.print("System has been");
+        lcd.setCursor(7, 2);
+        lcd.print("locked");
+      }
+      else if(choice == 2) {
+        systemIsLocked = false;
+
+        lcd.setCursor(3, 1);
+        lcd.print("System Lock was");
+        lcd.setCursor(6, 2);
+        lcd.print("cancelled");
+      }
+
+      delMenuFlag = false;
+    }
+
+    delay(2000);
+    lcd.clear();
+  }
+
+  if (keyInput == 'D' && systemIsLocked == false){
     setTime();  // Function call to set time 
   }
-  else if(keyInput == 'A') {
+  else if(keyInput == 'A' && systemIsLocked == false) {
     backToMenu:
     menuFlag = true;
 
@@ -406,7 +474,7 @@ void loop(){
     }
   }
   // For setting a custom or temporary schedule
-  else if(keyInput == 'B') {
+  else if(keyInput == 'B' && systemIsLocked == false) {
     backToMenu2:
     menuFlag = true;
 
@@ -455,7 +523,7 @@ void loop(){
     }
   }
   // For setting feed weight info
-  else if(keyInput == 'C') {
+  else if(keyInput == 'C' && systemIsLocked == false) {
     backToWeightMenu:
     menuFlag = true;
 
@@ -697,6 +765,8 @@ void dispenseFeed(String schedType) {
       const unsigned long weightTimer = 1000;
       unsigned long weightPrevTime = 0;
       unsigned long weightCurrTime = 0;
+      const unsigned long timeoutDuration = 120000; // 2 minutes
+      unsigned long startTime = millis();
 
       if(feedQuantity[feedDispenseCtr].feedWeight <= 0.3){
         tot = 0;
@@ -709,6 +779,13 @@ void dispenseFeed(String schedType) {
             displayWeightLCD(weight, feedMax, schedType);   // Function call to display the current feed weight on the LCD
 
             weightPrevTime = weightCurrTime;
+          }
+
+          if(weightCurrTime - startTime >= timeoutDuration) {
+            // Stop M1 if the required weight is not reached within 2 minutes
+            servoM1.write(0);
+            lcd.clear();
+            return;
           }
         }
       }
@@ -726,6 +803,13 @@ void dispenseFeed(String schedType) {
             displayWeightLCD(weight, feedMax, schedType);   // Function call to display the current feed weight on the LCD
 
             weightPrevTime = weightCurrTime;
+          }
+
+          if(weightCurrTime - startTime >= timeoutDuration) {
+            // Stop M1 if the required weight is not reached within 2 minutes
+            servoM1.write(0);
+            lcd.clear();
+            return;
           }
         }
 
@@ -745,6 +829,8 @@ void dispenseFeed(String schedType) {
     const unsigned long weightTimer = 1000;
     unsigned long weightPrevTime = 0;
     unsigned long weightCurrTime = 0;
+    const unsigned long timeoutDuration = 120000; // 2 minutes
+    unsigned long startTime = millis();
 
     Blynk.logEvent("started_feeding", "Start Feeding" + feedType + "  " + String(tempSched[tempFeedDispenseCtr].feedWeight) + " Kg");
 
@@ -759,6 +845,13 @@ void dispenseFeed(String schedType) {
           displayWeightLCD(weight, feedMax, schedType);   // Function call to display the current feed weight on the LCD
 
           weightPrevTime = weightCurrTime;
+        }
+
+        if(weightCurrTime - startTime >= timeoutDuration) {
+          // Stop M1 if the required weight is not reached within 2 minutes
+          servoM1.write(0);
+          lcd.clear();
+          return;
         }
       }
     }
@@ -776,6 +869,13 @@ void dispenseFeed(String schedType) {
           displayWeightLCD(weight, feedMax, schedType);   // Function call to display the current feed weight on the LCD
 
           weightPrevTime = weightCurrTime;
+        }
+
+        if(weightCurrTime - startTime >= timeoutDuration) {
+          // Stop M1 if the required weight is not reached within 2 minutes
+          servoM1.write(0);
+          lcd.clear();
+          return;
         }
       }
 
